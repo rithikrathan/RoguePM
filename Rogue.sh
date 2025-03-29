@@ -10,7 +10,7 @@ COMMIT_MSG="Initial commit"
 # Parse arguments
 while [[ $# -gt 0 ]]; do
 	case "$1" in
-		-n) read -p "Enter project name:" PROJECT_NAME
+		-n) read -p "[Rogue] Enter project name: " PROJECT_NAME
 			shift 
 			;;
 
@@ -24,17 +24,12 @@ while [[ $# -gt 0 ]]; do
 			shift 2
 			;;
 		-m) COMMIT_MSG="$2"; shift 2 ;;
-		*) echo "Usage: project -n <project_name> [-d <custom_directory>] [-v <public|private>] [-m <commit_msg>]"; exit 1 ;;
+		*) echo "Usage: project -n <project_name> [-r {replaces existing directory in this name}] [-v <public|private>] [-m <commit_msg>]"; exit 1 ;;
 	esac
 done
 
-# Check if project name is provided
-if [ -z "$PROJECT_NAME" ]; then
-	echo "Error: Project name is required."
-	exit 1
-fi
-
 # Create project directory:
+echo "---------- Creating project directory ----------"
 if [ -e "$PROJECTS_DIR$PROJECT_NAME" ];then
 	if [ "$REPLACE" == "true" ];then
 		echo "Replacing existing directory....."
@@ -54,6 +49,7 @@ else
 	cd "$PROJECTS_DIR$PROJECT_NAME"
 fi
 
+echo "---------- Creating GitHub repository ----------"
 # Check if the GitHub CLI is authenticated
 if ! gh auth status &>/dev/null; then
 	echo "Error: GitHub CLI is not authenticated or timed out. Run 'gh auth login' first."
@@ -63,14 +59,17 @@ fi
 
 # Get GitHub username using GitHub API
 GITHUB_USER=$(gh api user --jq .login)
-echo "UserName: $GITHUB_USER"
+echo "GitHub username: $GITHUB_USER"
 
 # Initialize Git
 git init
+gh repo create "$PROJECT_NAME" --"$REPO_VISIBILITY" --source=. --remote=origin
+echo "GitHub repository created: https://github.com/$GITHUB_USER/$PROJECT_NAME"
 
+echo "---------- Creating basic files ----------"
 # Create default project files
 echo "# $PROJECT_NAME" > README.md
-
+echo ✔ Created README.md
 # Basic .gitignore
 cat <<EOL > .gitignore
 # Compiled files
@@ -93,19 +92,17 @@ __pycache__/
 # Node.js
 node_modules/
 EOL
+echo ✔ Created .gitignore
 
 # Generate license
 gh api "/licenses/mit" --jq .body > LICENSE
+echo ✔ Created LICENSE
 
-# # Create GitHub repository using gh CLI
-gh repo create "$PROJECT_NAME" --"$REPO_VISIBILITY" --source=. --remote=origin
-echo "GitHub repository created: https://github.com/$GITHUB_USER/$PROJECT_NAME"
-
-# # Add and push files
+echo "---------- Making initial commit ----------"
+# Add and push files
 git add .
-echo -p"---------- Making initial commit ----------"
 git commit -m "$COMMIT_MSG"
-echo -p"----------  Pushing to main branch ----------"
+echo "----------  Pushing to main branch ----------"
 git push -u origin main
 
 
