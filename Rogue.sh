@@ -2,7 +2,7 @@
 
 # Default values
 REPLACE= "false"
-PROJECTS_DIR=~/Desktop/projects/
+PROJECTS_DIR=$(pwd)/
 PROJECT_NAME="<Placeholder>"
 REPO_VISIBILITY="private"  # Default to private
 COMMIT_MSG="Initial commit"
@@ -10,7 +10,10 @@ COMMIT_MSG="Initial commit"
 # Parse arguments
 while [[ $# -gt 0 ]]; do
 	case "$1" in
-		-n) PROJECT_NAME="$2"; shift 2 ;;
+		-n) read -p "Enter project name:" PROJECT_NAME
+			shift 
+			;;
+
 		-r) REPLACE="true"; shift ;;
 		-v) 
 			if [[ "$2" != "public" && "$2" != "private" ]]; then
@@ -53,58 +56,56 @@ fi
 
 # Check if the GitHub CLI is authenticated
 if ! gh auth status &>/dev/null; then
-	echo "Error: GitHub CLI is not authenticated. Run 'gh auth login' first."
+	echo "Error: GitHub CLI is not authenticated or timed out. Run 'gh auth login' first."
 	echo "Exiting....."
 	exit 1
 fi
-
-# Get GitHub token from gh CLI
-GITHUB_TOKEN=$(gh auth token) 
-echo "PersonalAccessToken: $GITHUB_TOKEN"
 
 # Get GitHub username using GitHub API
 GITHUB_USER=$(gh api user --jq .login)
 echo "UserName: $GITHUB_USER"
 
-# # Initialize Git
+# Initialize Git
 git init
 
-# # Create default project files
-# echo "# $PROJECT_NAME" > README.md
+# Create default project files
+echo "# $PROJECT_NAME" > README.md
 
-# # Basic .gitignore
-# cat <<EOL > .gitignore
-# # Compiled files
-# *.out
-# *.o
-# *.exe
+# Basic .gitignore
+cat <<EOL > .gitignore
+# Compiled files
+*.out
+*.o
+*.exe
 
-# # Logs
-# *.log
+# Logs
+*.log
 
-# # IDE / Editor files
-# .vscode/
-# .idea/
-# *.swp
+# IDE / Editor files
+.vscode/
+.idea/
+*.swp
 
-# # Python
-# __pycache__/
-# *.pyc
+# Python
+__pycache__/
+*.pyc
 
-# # Node.js
-# node_modules/
-# EOL
+# Node.js
+node_modules/
+EOL
 
-# # Generate license
-# gh api "/licenses/mit" --jq .body > LICENSE
+# Generate license
+gh api "/licenses/mit" --jq .body > LICENSE
 
 # # Create GitHub repository using gh CLI
-# gh repo create "$PROJECT_NAME" --"$REPO_VISIBILITY" --source=. --remote=origin
+gh repo create "$PROJECT_NAME" --"$REPO_VISIBILITY" --source=. --remote=origin
+echo "GitHub repository created: https://github.com/$GITHUB_USER/$PROJECT_NAME"
 
 # # Add and push files
-# git add .
-# git commit -m "$COMMIT_MSG"
-# git push -u origin main
+git add .
+echo -p"---------- Making initial commit ----------"
+git commit -m "$COMMIT_MSG"
+echo -p"----------  Pushing to main branch ----------"
+git push -u origin main
 
-# echo "GitHub repository created: https://github.com/$GITHUB_USER/$PROJECT_NAME"
 
