@@ -11,7 +11,6 @@ COMMIT_MSG="Initial commit"
 while [[ $# -gt 0 ]]; do
 	case "$1" in
 		-n) PROJECT_NAME="$2"; shift 2 ;;
-		-d) PROJECTS_DIR="$2"; shift 2 ;;
 		-r) REPLACE="true"; shift ;;
 		-v) 
 			if [[ "$2" != "public" && "$2" != "private" ]]; then
@@ -39,7 +38,7 @@ if [ -e "$PROJECTS_DIR$PROJECT_NAME" ];then
 		rm -rf "$PROJECTS_DIR$PROJECT_NAME"
 		mkdir -p "$PROJECTS_DIR$PROJECT_NAME"
 		echo "Current directory is set to $PROJECTS_DIR$PROJECT_NAME......"
-		# cd "$PROJECTS_DIR$PROJECT_NAME"|| exit 
+		cd "$PROJECTS_DIR$PROJECT_NAME" 
 	else
 		echo "Directory already exists! Try again with -r flag to replace it"
 		echo "Exiting......"
@@ -49,7 +48,7 @@ else
 	echo "Creating project directory...."
 	mkdir -p "$PROJECTS_DIR$PROJECT_NAME"
 	echo "Current directory is set to $PROJECTS_DIR$PROJECT_NAME......"
-	# cd "$PROJECTS_DIR$PROJECT_NAME"|| exit
+	cd "$PROJECTS_DIR$PROJECT_NAME"
 fi
 
 # Check if the GitHub CLI is authenticated
@@ -68,7 +67,7 @@ GITHUB_USER=$(gh api user --jq .login)
 echo "UserName: $GITHUB_USER"
 
 # # Initialize Git
-# git init
+git init
 
 # # Create default project files
 # echo "# $PROJECT_NAME" > README.md
