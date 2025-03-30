@@ -1,14 +1,15 @@
+#!/bin/bash
 
-FILES_DIR=~/Desktop/projects/RoguePM/templates/default/files/
-PROJECT_DIR="placeholder"
-PROJECT_NAME="placeholder"
+# set -x # Enable debugging
 
+FILES_DIR="/home/rathanthegreatlol/Desktop/projects/RoguePM/RogueTemplates/default/files/"
+PROJECT_DIR=$(pwd)/
+PROJECT_NAME=/"placeholder"
 
 #Parse arguments
 while [[ $# -gt 0 ]]; do 
 	case "$1" in
-		-p) PROJECT_DIR="$2"; shift 2;;
-		-n) PROJECT_NAME="$2"; shift 2;;
+		-n) PROJECT_NAME=/"$2"; shift 2;;
 		*) echo "invalid arguments"; exit 1;; # throws when arguments other than the above two is passed
 	esac
 done
@@ -25,9 +26,14 @@ is it?
 EOL
 echo "✔ Created README.md"
 
+# Debug stuffs
+# echo "Checking directory: $FILES_DIR"
+# ls -l "$FILES_DIR"  # List contents for debugging
+
 # Create predefined files and directories
-if [ -d $FILES_DIR ];then
-	for item in $FILES_DIR*;do
+if [ -d "$FILES_DIR" ];then
+	for item in "$FILES_DIR"/.* "$FILES_DIR"/*;do
+		# echo $item # Debug stuffs
 		if [ -f "$item" ];then
 			cp "$item" "$PROJECT_DIR/"
 			echo "✔ Created $(basename "$item")" 
@@ -36,7 +42,10 @@ if [ -d $FILES_DIR ];then
 			echo "✔ Created $(basename "$item") directory" 
 		fi
 	done
-else
+	shopt -u dotglob
+elif [ ! -d "$FILES_DIR" ];then
 	echo "Additional files not found, skipping....."
 	exit 0
+else
+	echo "yeah something fishy"
 fi

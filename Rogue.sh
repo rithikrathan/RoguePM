@@ -7,7 +7,7 @@ PROJECT_NAME="<Placeholder>"
 REPO_VISIBILITY="private"  # Default to private
 COMMIT_MSG="Initial commit"
 
-TEMPLATES_DIR="~/Desktop/projects/RoguePM/RogueTemplates/"
+TEMPLATES_DIR="RogueTemplates/"
 TEMPLATE="default"
 
 # Parse arguments
@@ -76,7 +76,7 @@ echo "GitHub repository created: https://github.com/$GITHUB_USER/$PROJECT_NAME"
 echo "---------- Creating basic files ----------"
 echo "Using $TEMPLATE template......"
 
-source "$TEMPLATE_DIR$TEMPLATE"/"$TEMPLATE.sh -p $PROJECT_DIR -n $PROJECT_NAME"
+. "~/Desktop/projects/RougePM/RogueTemplates/$TEMPLATE/$TEMPLATE.sh -n "$PROJECT_NAME""
 
 # basic files
 # echo "# $PROJECT_NAME" > README.md
