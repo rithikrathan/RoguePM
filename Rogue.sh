@@ -3,7 +3,6 @@
 # Default values
 REPLACE= "false"
 PROJECTS_DIR=$(pwd)/
-PROJECT_DIR="$PROJECTS_DIR$PROJECT_NAME"
 PROJECT_NAME="<Placeholder>"
 REPO_VISIBILITY="private"  # Default to private
 COMMIT_MSG="Initial commit"
@@ -32,6 +31,9 @@ while [[ $# -gt 0 ]]; do
 		*) echo "Usage: project -n <project_name> [-r {replaces existing directory in this name}] [-v <public|private>] [-m <commit_msg>]"; exit 1 ;;
 	esac
 done
+
+PROJECT_DIR="$PROJECTS_DIR$PROJECT_NAME"
+# echo "projectDirectory: $PROJECT_DIR"
 
 # Create project directory:
 echo "---------- Creating project directory ----------"
@@ -68,7 +70,7 @@ echo "GitHub username: $GITHUB_USER"
 
 # Initialize Git
 git init
-# gh repo create "$PROJECT_NAME" --"$REPO_VISIBILITY" --source=. --remote=origin
+gh repo create "$PROJECT_NAME" --"$REPO_VISIBILITY" --source=. --remote=origin
 echo "GitHub repository created: https://github.com/$GITHUB_USER/$PROJECT_NAME"
 
 echo "---------- Creating basic files ----------"
@@ -106,10 +108,10 @@ source "$TEMPLATE_DIR$TEMPLATE"/"$TEMPLATE.sh -p $PROJECT_DIR -n $PROJECT_NAME"
 # gh api "/licenses/mit" --jq .body > LICENSE
 # echo ✔ Created LICENSE
 
-# echo "---------- Making initial commit ----------"
-# git add .
-# git commit -m "$COMMIT_MSG"
-# echo "----------  Pushing to main branch ----------"
-# git push -u origin main
+echo "---------- Making initial commit ----------"
+git add .
+git commit -m "$COMMIT_MSG"
+echo "----------  Pushing to main branch ----------"
+git push -u origin main
 
 
