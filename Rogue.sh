@@ -7,20 +7,19 @@ PROJECT_NAME="<Placeholder>"
 REPO_VISIBILITY="private"  # Default to private
 COMMIT_MSG="Initial commit"
 
-TEMPLATES_DIR="RogueTemplates/"
+TEMPLATES_DIR="/home/rathanthegreatlol/Desktop/projects/RoguePM/RogueTemplates/"
 TEMPLATE="default"
 
 # Parse arguments
 while [[ $# -gt 0 ]]; do
 	case "$1" in
-		-n) read -p "[Rogue] Enter project name: " PROJECT_NAME
+		new) read -p "[Rogue] Enter project name: " PROJECT_NAME
 			shift 
 			;;
-
 		-r) REPLACE="true"; shift ;;
 		-v) 
 			if [[ "$2" != "public" && "$2" != "private" ]]; then
-				echo "Error: Visibility must be 'public' or 'private'."
+				echo "[Rogue] Error: Visibility must be 'public' or 'private'."]
 				exit 1
 			fi
 			REPO_VISIBILITY="$2"
@@ -39,74 +38,44 @@ PROJECT_DIR="$PROJECTS_DIR$PROJECT_NAME"
 echo "---------- Creating project directory ----------"
 if [ -e "$PROJECT_DIR" ];then
 	if [ "$REPLACE" == "true" ];then
-		echo "Replacing existing directory....."
+		echo "[Rogue] Replacing existing directory....."
 		rm -rf "$PROJECT_DIR"
 		mkdir -p "$PROJECT_DIR"
-		echo "Current directory is set to $PROJECT_DIR......"
+		echo "[Rogue] Current directory is set to $PROJECT_DIR......"
 		cd "$PROJECT_DIR" 
 	else
-		echo "Directory already exists! Try again with -r flag to replace it (will delete existing data)"
-		echo "Exiting......"
+		echo "[Rogue] Directory already exists! Try again with -r flag to replace it (will delete existing data)"
+		echo "[Rogue] Exiting......"
 		exit 1
 	fi
 else
-	echo "Creating project directory...."
+	echo "[Rogue] Creating project directory...."
 	mkdir -p "$PROJECT_DIR"
-	echo "Current directory is set to $PROJECT_DIR......"
+	echo "[Rogue] Current directory is set to $PROJECT_DIR......"
 	cd "$PROJECT_DIR"
 fi
 
 echo "---------- Creating GitHub repository ----------"
 # Check if the GitHub CLI is authenticated
 if ! gh auth status &>/dev/null; then
-	echo "Error: GitHub CLI is not authenticated or timed out. try running  'gh auth login' first or checking your internet connection."
-	echo "Exiting....."
+	echo "[Rogue] Error: GitHub CLI is not authenticated or timed out. try running  'gh auth login' first or checking your internet connection."
+	echo "[Rogue] Exiting....."
 	exit 1
 fi
 
 # Get GitHub username using GitHub API
 GITHUB_USER=$(gh api user --jq .login)
-echo "GitHub username: $GITHUB_USER"
+echo "[Rogue] GitHub username: $GITHUB_USER"
 
 # Initialize Git
 git init
 gh repo create "$PROJECT_NAME" --"$REPO_VISIBILITY" --source=. --remote=origin
-echo "GitHub repository created: https://github.com/$GITHUB_USER/$PROJECT_NAME"
+echo "[Rogue] GitHub repository created: https://github.com/$GITHUB_USER/$PROJECT_NAME"
 
 echo "---------- Creating basic files ----------"
-echo "Using $TEMPLATE template......"
+echo "[Rogue] Using $TEMPLATE template......"
 
-. "~/Desktop/projects/RougePM/RogueTemplates/$TEMPLATE/$TEMPLATE.sh -n "$PROJECT_NAME""
-
-# basic files
-# echo "# $PROJECT_NAME" > README.md
-# echo ✔ Created README.md
-
-# cat <<EOL > .gitignore
-# # Compiled files
-# *.out
-# *.o
-# *.exe
-
-# # Logs
-# *.log
-
-# # IDE / Editor files
-# .vscode/
-# .idea/
-# *.swp
-
-# # Python
-# __pycache__/
-# *.pyc
-
-# # Node.js
-# node_modules/
-# EOL
-# echo ✔ Created .gitignore
-
-# gh api "/licenses/mit" --jq .body > LICENSE
-# echo ✔ Created LICENSE
+~/Desktop/projects/RoguePM/RogueTemplates/$TEMPLATE/$TEMPLATE.sh -n "$PROJECT_NAME"
 
 echo "---------- Making initial commit ----------"
 git add .
