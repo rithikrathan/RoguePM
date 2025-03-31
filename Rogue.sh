@@ -34,8 +34,8 @@ while [[ $# -gt 0 ]]; do
 				echo -e "\e[1m[Rogue]\e[0m Exiting......"
 				return 1
 			fi
-			
-			if [[ -d "$TEMPLATE_DIR/$2" ]];then
+			echo "Template directory path: $TEMPLATES_DIR$2"
+			if [[ -d "$TEMPLATES_DIR$2" ]];then
 				TEMPLATE="$2"; 
 			else
 				echo -e "\e[1m[Rogue]\e[0m Error: Template does not exist in the template directory using default template"

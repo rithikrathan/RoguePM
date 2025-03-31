@@ -1,0 +1,14 @@
+manim
+numpy
+scipy
+pillow
+pandas
+sympy
+pycairo
+tqdm
+matplotlib
+seaborn
+plotly
+ffmpeg-python
+pydub
+

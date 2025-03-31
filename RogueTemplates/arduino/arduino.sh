@@ -1,6 +1,6 @@
 #!/bin/bash
 # set -x # Enable debugging
-FILES_DIR="/home/rathanthegreatlol/Desktop/projects/RoguePM/RogueTemplates/default/files/"
+FILES_DIR="/home/rathanthegreatlol/Desktop/projects/RoguePM/RogueTemplates/arduino/files/"
 PROJECT_DIR=$(pwd)/
 PROJECT_NAME="placeholder"
 LICENSE="mit"
@@ -47,7 +47,11 @@ if [ -d "$FILES_DIR" ];then
 	shopt -u dotglob
 elif [ ! -d "$FILES_DIR" ];then
 	echo -e "\e[1m[Rogue]\e[0m Additional files not found, skipping....."
-	return 1
+	exit 1
 else
 	echo -e "\e[1m[Rogue]\e[0m yeah something fishy this shouldn't happen"
 fi
+
+mkdir $PROJECT_DIR/$PROJECT_NAME
+touch $PROJECT_DIR/$PROJECT_NAME/$PROJECT_NAME.ino
+echo "[✔] Created $PROJECT_NAME.ino file"

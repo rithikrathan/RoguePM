@@ -1,6 +1,6 @@
 #!/bin/bash
 # set -x # Enable debugging
-FILES_DIR="/home/rathanthegreatlol/Desktop/projects/RoguePM/RogueTemplates/default/files/"
+FILES_DIR="/home/rathanthegreatlol/Desktop/projects/RoguePM/RogueTemplates/micropython/files/"
 PROJECT_DIR=$(pwd)/
 PROJECT_NAME="placeholder"
 LICENSE="mit"

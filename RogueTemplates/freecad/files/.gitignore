@@ -1,0 +1,52 @@
+# Ignore temporary and backup files
+*.tmp
+*.bak
+*.swp
+*.swo
+*.log
+*.lock
+.DS_Store
+Thumbs.db
+
+# Ignore build and output directories
+/build/
+/dist/
+/out/
+/bin/
+/generated/
+
+# Ignore system-specific files
+*.cache
+*.DS_Store
+*.Spotlight-V100
+*.Trashes
+*.~lock.*
+/._*
+
+# Ignore version control metadata
+*.orig
+*.rej
+
+# Ignore archives and compressed files
+*.zip
+*.tar
+*.gz
+*.rar
+*.7z
+
+# Ignore large binary files
+*.iso
+*.dmg
+*.exe
+*.dll
+*.so
+*.o
+*.a
+*.lib
+*.obj
+
+# Ignore user-specific configuration
+*.env
+*.config.local
+/private/
+
