@@ -16,18 +16,40 @@ while [[ $# -gt 0 ]]; do
 		new) read -p "[Rogue] Enter project name: " PROJECT_NAME
 			shift 
 			;;
+			
 		-r) REPLACE="true"; shift ;;
+			
 		-v) 
 			if [[ "$2" != "public" && "$2" != "private" ]]; then
-				echo "[Rogue] Error: Visibility must be 'public' or 'private'."]
-				exit 1
+				echo "[Rogue] Error: Visibility must be 'public' or 'private'."
+				return 1
 			fi
-			REPO_VISIBILITY="$2"
+			REPO_VISIBILITY="$2";
 			shift 2
 			;;
-		-t) TEMPLATE="$2"; shift 2 ;;
-		-m) COMMIT_MSG="$2"; shift 2 ;;
-		*) echo "Usage: project -n <project_name> [-r {replaces existing directory in this name}] [-v <public|private>] [-m <commit_msg>]"; exit 1 ;;
+			
+		-t) if [[ -z "$2" ]];then
+				echo "[Rogue] Error: Template name cannot be empty."
+				return 1
+			fi
+			
+			if [[ -d "$TEMPLATE_DIR/$2" ]];then
+				TEMPLATE="$2"; 
+				shift 2 
+			else
+				echo "[Rogue] Error: Template does not exist in the template directory using default template"
+				TEMPLATE="$2"
+			fi
+			;;
+			
+		-m) if [[ -z "$2" ]];then
+				echo "[Rogue] Error: Commit message cannot be empty."
+				return 1
+			fi
+			COMMIT_MSG="$2"; 
+			shift 2 ;;
+			
+		*) echo "Usage: project -n <project_name> [-r {replaces existing directory in this name}] [-v <public|private>] [-m <commit_msg>]"; return 1 ;;
 	esac
 done
 
@@ -44,9 +66,9 @@ if [ -e "$PROJECT_DIR" ];then
 		echo "[Rogue] Current directory is set to $PROJECT_DIR......"
 		cd "$PROJECT_DIR" 
 	else
-		echo "[Rogue] Directory already exists! Try again with -r flag to replace it (will delete existing data)"
+		echo "[Rogue] Error: Directory already exists! Try again with -r flag to replace it (will delete existing data)"
 		echo "[Rogue] Exiting......"
-		exit 1
+		return 1
 	fi
 else
 	echo "[Rogue] Creating project directory...."
@@ -60,7 +82,7 @@ echo "---------- Creating GitHub repository ----------"
 if ! gh auth status &>/dev/null; then
 	echo "[Rogue] Error: GitHub CLI is not authenticated or timed out. try running  'gh auth login' first or checking your internet connection."
 	echo "[Rogue] Exiting....."
-	exit 1
+	return 1
 fi
 
 # Get GitHub username using GitHub API
