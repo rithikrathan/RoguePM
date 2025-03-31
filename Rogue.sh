@@ -13,7 +13,9 @@ TEMPLATE="default"
 # Parse arguments
 while [[ $# -gt 0 ]]; do
 	case "$1" in
-		new) read -p "[Rogue] Enter project name: " PROJECT_NAME
+		new)echo "-------------------------------------------------------------------"
+			read -p "[Rogue] Enter project name: " PROJECT_NAME
+			echo "-------------------------------------------------------------------"
 			shift 
 			;;
 			
@@ -57,13 +59,14 @@ PROJECT_DIR="$PROJECTS_DIR$PROJECT_NAME"
 # echo "projectDirectory: $PROJECT_DIR"
 
 # Create project directory:
-echo "---------- Creating project directory ----------"
+echo "\n [~~~~~~~~~~~~~~~~~~|Creating project directory|~~~~~~~~~~~~~~~~]"
+# Creates a project directory {thats how your comment should be}
 if [ -e "$PROJECT_DIR" ];then
 	if [ "$REPLACE" == "true" ];then
 		echo "[Rogue] Replacing existing directory....."
 		rm -rf "$PROJECT_DIR"
 		mkdir -p "$PROJECT_DIR"
-		echo "[Rogue] Current directory is set to $PROJECT_DIR......"
+		echo "[Rogue] Current directory is set to $PROJECT_DIR"
 		cd "$PROJECT_DIR" 
 	else
 		echo "[Rogue] Error: Directory already exists! Try again with -r flag to replace it (will delete existing data)"
@@ -71,38 +74,37 @@ if [ -e "$PROJECT_DIR" ];then
 		return 1
 	fi
 else
-	echo "[Rogue] Creating project directory...."
+	echo "[Rogue] Creating project directory....."
 	mkdir -p "$PROJECT_DIR"
-	echo "[Rogue] Current directory is set to $PROJECT_DIR......"
+	echo "[Rogue] Current directory is set to $PROJECT_DIR"
 	cd "$PROJECT_DIR"
 fi
 
-echo "---------- Creating GitHub repository ----------"
+echo "\n [~~~~~~~~~~~~~~~~~|Creating GitHub repository|~~~~~~~~~~~~~~~~~]"
 # Check if the GitHub CLI is authenticated
 if ! gh auth status &>/dev/null; then
 	echo "[Rogue] Error: GitHub CLI is not authenticated or timed out. try running  'gh auth login' first or checking your internet connection."
 	echo "[Rogue] Exiting....."
 	return 1
 fi
-
 # Get GitHub username using GitHub API
 GITHUB_USER=$(gh api user --jq .login)
+echo "-------------------------------------------------------------------"
 echo "[Rogue] GitHub username: $GITHUB_USER"
-
+echo "-------------------------------------------------------------------"
 # Initialize Git
 git init
 gh repo create "$PROJECT_NAME" --"$REPO_VISIBILITY" --source=. --remote=origin
 echo "[Rogue] GitHub repository created: https://github.com/$GITHUB_USER/$PROJECT_NAME"
 
-echo "---------- Creating basic files ----------"
+echo "\n [~~~~~~~~~~~~~~~|Creating Basic files and folders|~~~~~~~~~~~~~]"
 echo "[Rogue] Using $TEMPLATE template......"
-
 ~/Desktop/projects/RoguePM/RogueTemplates/$TEMPLATE/$TEMPLATE.sh -n "$PROJECT_NAME"
 
-echo "---------- Making initial commit ----------"
+echo "\n [~~~~~~~~~~~~~~~~~~~~|Making initial commit|~~~~~~~~~~~~~~~~~~~]"
 git add .
 git commit -m "$COMMIT_MSG"
-echo "----------  Pushing to main branch ----------"
+echo "\n [~~~~~~~~~~~~~~~~~~~~|Pushing to main branch|~~~~~~~~~~~~~~~~~~]"
 git push -u origin main
 
 
