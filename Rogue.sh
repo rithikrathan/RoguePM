@@ -6,7 +6,7 @@ PROJECTS_DIR=$(pwd)/
 PROJECT_NAME="<Placeholder>"
 REPO_VISIBILITY="private"  # Default to private
 COMMIT_MSG="Initial commit"
-
+LICENSE="mit"
 TEMPLATES_DIR="/home/rathanthegreatlol/Desktop/projects/RoguePM/RogueTemplates/"
 TEMPLATE="default"
 
@@ -52,6 +52,15 @@ while [[ $# -gt 0 ]]; do
 			COMMIT_MSG="$2"; 
 			shift 2 ;;
 			
+		-l) if [[ -z "$2" ]];then
+				echo -e "\e[1m[Rogue]\e[0m Error: License not specified."
+				echo -e "\e[1m[Rogue]\e[0m Using MIT license....."
+				LICENSE="mit"
+			else
+				LICENSE="$2"; 
+			fi
+			
+			shift 2 ;;
 		*) echo "Usage: project -n <project_name> [-r {replaces existing directory in this name}] [-v <public|private>] [-m <commit_msg>]"; return 1 ;;
 	esac
 done
@@ -98,8 +107,9 @@ gh repo create "$PROJECT_NAME" --"$REPO_VISIBILITY" --source=. --remote=origin
 echo -e "\e[1m[Rogue]\e[0m GitHub repository created: https://github.com/$GITHUB_USER/$PROJECT_NAME"
 
 echo -e "\n[~~~~~~~~~~~~~~~|Creating Basic files and folders|~~~~~~~~~~~~~]"
+# runs the template script to setup the files
 echo -e "\e[1m[Rogue]\e[0m Using $TEMPLATE template......"
-~/Desktop/projects/RoguePM/RogueTemplates/$TEMPLATE/$TEMPLATE.sh -n "$PROJECT_NAME"
+~/Desktop/projects/RoguePM/RogueTemplates/$TEMPLATE/$TEMPLATE.sh -n "$PROJECT_NAME" -l "$LICENSE" -m "$COMMIT_MSG"
 
 
 echo -e "\n[~~~~~~~~~~~~~~~~~~~~|Making initial commit|~~~~~~~~~~~~~~~~~~~]"
