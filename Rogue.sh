@@ -7,7 +7,7 @@ PROJECT_NAME="<Placeholder>"
 REPO_VISIBILITY="private"  # Default to private
 COMMIT_MSG="Initial commit"
 LICENSE="mit"
-TEMPLATES_DIR="/home/rathanthegreatlol/Desktop/projects/RoguePM/RogueTemplates/"
+TEMPLATES_DIR="/home/godz/Desktop/projects/RoguePM/RogueTemplates/"
 TEMPLATE="default"
 
 # Parse arguments

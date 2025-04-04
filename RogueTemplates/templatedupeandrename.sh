@@ -5,7 +5,7 @@ names=("godot2d" "godot3d" "kicad" "logisim" "freecad" "assembly" "bash" "arduin
 
 default_folder="default"
 
-template_dir="/home/rathanthegreatlol/Desktop/projects/RoguePM/RogueTemplates/"  # Change this to your actual template directory
+template_dir="/home/godz/Desktop/projects/RoguePM/RogueTemplates/"  # Change this to your actual template directory
 
 for name in "${names[@]}"; do
     new_folder="$template_dir/$name"
