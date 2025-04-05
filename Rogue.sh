@@ -10,6 +10,16 @@ LICENSE="mit"
 TEMPLATES_DIR="/home/godz/Desktop/projects/RoguePM/RogueTemplates/"
 TEMPLATE="default"
 
+cat << "EOF"
+  ____                                  ____   __  __ 
+ |  _ \  ___    __ _  _   _   ___      |  _ \ |  \/  |
+ | |_) |/ _ \  / _` || | | | / _ \     | |_) || |\/| |
+ |  _ <| (_) || (_| || |_| ||  __/     |  __/ | |  | |
+ |_| \_\\___/  \__, | \__,_| \___|_____|_|    |_|  |_|
+               |___/             |_____|              
+
+EOF
+
 # Parse arguments
 while [[ $# -gt 0 ]]; do
 	case "$1" in
@@ -99,12 +109,14 @@ if ! gh auth status &>/dev/null; then
 fi
 # Get GitHub username using GitHub API
 GITHUB_USER=$(gh api user --jq .login)
-echo -e "\e[1m[Rogue]\e[0m GitHub username: $GITHUB_USER \n"
+echo -e "\e[1m[Rogue]\e[0m GitHub username: $GITHUB_USER"
+echo -e "\e[1m[Rogue]\e[0m GitHub repository name: $PROJECT_NAME"
+echo -e "\e[1m[Rogue]\e[0m GitHub repository visibility: $REPO_VISIBILITY"
 
 # Initialize Git
 git init
 gh repo create "$PROJECT_NAME" --"$REPO_VISIBILITY" --source=. --remote=origin
-echo -e "\e[1m[Rogue]\e[0m GitHub repository created: https://github.com/$GITHUB_USER/$PROJECT_NAME"
+echo -e "\e[1m[Rogue]\e[0m GitHub repository created: https://github.com/$GITHUB_USER/$PROJECT_NAME.git"
 
 echo -e "\n[~~~~~~~~~~~~~~~|Creating Basic files and folders|~~~~~~~~~~~~~]"
 # runs the template script to setup the files
@@ -115,6 +127,6 @@ echo -e "\e[1m[Rogue]\e[0m Using $TEMPLATE template......"
 echo -e "\n[~~~~~~~~~~~~~~~~~~~~|Making initial commit|~~~~~~~~~~~~~~~~~~~]"
 git add .
 git commit -m "$COMMIT_MSG"
-echo -e "\n[~~~~~~~~~~~~~~~~~~~~|Pushing to main branch|~~~~~~~~~~~~~~~~~~]"
-git push -u origin main
+echo -e "\n[~~~~~~~~~~~~~~~~~~~~|Pushing to \e[1mMaster\e[0m branch|~~~~~~~~~~~~~~~~~~]"
+git push -u origin master
 echo -e "\n\e[1m[Rogue]\e[0m Exiting......"
