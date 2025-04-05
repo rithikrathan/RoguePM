@@ -34,12 +34,14 @@ Rogue_PM is a lightweight CLI-based project manager written in Bash. It automate
     chmod +x Rogue.sh
 
 ## Usage
-    ```bash
-    source Rogue.sh new <flags>
-- flags:
-     -t <template name> : Creates the project directory based on the given template
-     -r : If a directory in the name of the project already exists, then replace it with this new project directory (existing files will be deleted)
-     -v <public/private> : Sets the Github repository's visiblity to private or public (default is private)
-     -m <initial commit message> : initial commit message for this project (default is "initial commit")
-     -l <project license> : specifies the license to be added (default is "mit")
+
+```bash
+source Rogue.sh new <flags>
+
+# Flags:
+# -t <template name>        : Creates the project directory based on the given template
+# -r                        : If a directory with the project name already exists, it will be replaced (existing files will be deleted)
+# -v <public/private>       : Sets the GitHub repository's visibility (default: private)
+# -m <initial commit msg>   : Initial commit message (default: "initial commit")
+# -l <project license>      : Specifies the license to add (default: "mit")t")
 
