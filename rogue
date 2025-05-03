@@ -1,14 +1,16 @@
 #!/bin/bash
 
 # Default values
-REPLACE= "false"
-PROJECTS_DIR=$(pwd)/
-PROJECT_NAME="<Placeholder>"
-REPO_VISIBILITY="private"  # Default to private
-COMMIT_MSG="Initial commit"
-LICENSE="mit"
-TEMPLATES_DIR="/home/godz/Desktop/projects/RoguePM/RogueTemplates/"
-TEMPLATE="default"
+replace= "false"
+projects_dir="$HOME/Desktop/projects/"
+project_name="<Placeholder>"
+default_visiblity="private"  # Default to private
+commit_msg="Initial commit"
+license="mit"
+templates_dir="$HOME/Desktop/projects/RoguePM/RogueTemplates/" # must change it to somthing like bin as this will be a executable
+template="default"
+config_file="$HOME/.roguerc"
+
 
 cat << "EOF"
   ____                                  ____   __  __ 
@@ -17,17 +19,16 @@ cat << "EOF"
  |  _ <| (_) || (_| || |_| ||  __/     |  __/ | |  | |
  |_| \_\\___/  \__, | \__,_| \___|_____|_|    |_|  |_|
                |___/             |_____|              
-
 EOF
 
 # Parse arguments
 while [[ $# -gt 0 ]]; do
 	case "$1" in
-		new)read -p $'\e[1m[Rogue]\e[0m Enter project name: ' PROJECT_NAME
+		new)read -p $'\e[1m[Rogue]\e[0m Enter project name: ' project_name
 			shift 
 			;;
 			
-		-r) REPLACE="true"; shift ;;
+		-r) replace="true"; shift ;;
 			
 		-v) 
 			if [[ "$2" != "public" && "$2" != "private" ]]; then
@@ -35,7 +36,7 @@ while [[ $# -gt 0 ]]; do
 				echo -e "\e[1m[Rogue]\e[0m Exiting......"
 				return 1
 			fi
-			REPO_VISIBILITY="$2";
+			default_visiblity="$2";
 			shift 2
 			;;
 			
@@ -44,12 +45,12 @@ while [[ $# -gt 0 ]]; do
 				echo -e "\e[1m[Rogue]\e[0m Exiting......"
 				return 1
 			fi
-			echo "Template directory path: $TEMPLATES_DIR$2"
-			if [[ -d "$TEMPLATES_DIR$2" ]];then
-				TEMPLATE="$2"; 
+			echo "Template directory path: $templates_dir$2"
+			if [[ -d "$templates_dir$2" ]];then
+				template="$2"; 
 			else
 				echo -e "\e[1m[Rogue]\e[0m Error: Template does not exist in the template directory using default template"
-				TEMPLATE="default"
+				template="default"
 			fi
 			shift 2 
 			;;
@@ -59,15 +60,15 @@ while [[ $# -gt 0 ]]; do
 				echo -e "\e[1m[Rogue]\e[0m Exiting......"
 				return 1
 			fi
-			COMMIT_MSG="$2"; 
+			commit_msg="$2"; 
 			shift 2 ;;
 			
 		-l) if [[ -z "$2" ]];then
 				echo -e "\e[1m[Rogue]\e[0m Error: License not specified."
 				echo -e "\e[1m[Rogue]\e[0m Using MIT license....."
-				LICENSE="mit"
+				license="mit"
 			else
-				LICENSE="$2"; 
+				license="$2"; 
 			fi
 			
 			shift 2 ;;
@@ -75,14 +76,14 @@ while [[ $# -gt 0 ]]; do
 	esac
 done
 
-PROJECT_DIR="$PROJECTS_DIR$PROJECT_NAME"
+PROJECT_DIR="$projects_dir$project_name"
 # echo "projectDirectory: $PROJECT_DIR"
 
 # Create project directory:
 echo -e "\n[~~~~~~~~~~~~~~~~~~|Creating project directory|~~~~~~~~~~~~~~~~]"
 # Creates a project directory {thats how your comment should be}
 if [ -e "$PROJECT_DIR" ];then
-	if [ "$REPLACE" == "true" ];then
+	if [ "$replace" == "true" ];then
 		echo -e "\e[1m[Rogue]\e[0m Replacing existing directory....."
 		rm -rf "$PROJECT_DIR"
 		mkdir -p "$PROJECT_DIR"
@@ -110,23 +111,24 @@ fi
 # Get GitHub username using GitHub API
 GITHUB_USER=$(gh api user --jq .login)
 echo -e "\e[1m[Rogue]\e[0m GitHub username: $GITHUB_USER"
-echo -e "\e[1m[Rogue]\e[0m GitHub repository name: $PROJECT_NAME"
-echo -e "\e[1m[Rogue]\e[0m GitHub repository visibility: $REPO_VISIBILITY"
+echo -e "\e[1m[Rogue]\e[0m GitHub repository name: $project_name"
+echo -e "\e[1m[Rogue]\e[0m GitHub repository visibility: $default_visiblity"
 
 # Initialize Git
 git init
-gh repo create "$PROJECT_NAME" --"$REPO_VISIBILITY" --source=. --remote=origin
-echo -e "\e[1m[Rogue]\e[0m GitHub repository created: https://github.com/$GITHUB_USER/$PROJECT_NAME.git"
+gh repo create "$project_name" --"$default_visiblity" --source=. --remote=origin
+echo -e "\e[1m[Rogue]\e[0m GitHub repository created: https://github.com/$GITHUB_USER/$project_name"
 
 echo -e "\n[~~~~~~~~~~~~~~~|Creating Basic files and folders|~~~~~~~~~~~~~]"
 # runs the template script to setup the files
-echo -e "\e[1m[Rogue]\e[0m Using $TEMPLATE template......"
-~/Desktop/projects/RoguePM/RogueTemplates/$TEMPLATE/$TEMPLATE.sh -n "$PROJECT_NAME" -l "$LICENSE" -m "$COMMIT_MSG"
+echo -e "\e[1m[Rogue]\e[0m Using $template template......"
+~/Desktop/projects/RoguePM/RogueTemplates/$template/$template.sh -n "$project_name" -l "$license" -m "$commit_msg"
 
 
 echo -e "\n[~~~~~~~~~~~~~~~~~~~~|Making initial commit|~~~~~~~~~~~~~~~~~~~]"
 git add .
-git commit -m "$COMMIT_MSG"
+git commit -m "$commit_msg"
+
 echo -e "\n[~~~~~~~~~~~~~~~~~~~~|Pushing to \e[1mMaster\e[0m branch|~~~~~~~~~~~~~~~~~~]"
 git push -u origin master
 echo -e "\n\e[1m[Rogue]\e[0m Exiting......"
