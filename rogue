@@ -26,10 +26,14 @@ EOF
 projectSnapshot(){
 	echo -e "\n[~~~~~~~~~~~~~~~~~~~~|Pushing snapshots of your projects|~~~~~~~~~~~~~~~~~~]"
 	for dir in $projects_dir*; do
-		echo -e "\n\e[1m[Rogue]\e[0m Opening $dir."
+		
+		dirBaseName=basename dir
+
+		echo -e "\n\e[1m[Rogue]\e[0m Opening $dirBaseName."
+		
 		if [ -d "$dir/.git" ]; then
 			echo -e "\e[1m[Rogue]\e[0m Gir repository found, proceeding....."
-			echo -e "\e[1m[Rogue]\e[0m Checking for changes in $dir."
+			echo -e "\e[1m[Rogue]\e[0m Checking for changes in $dirBaseName."
 			cd "$dir" || continue
 			
 			if ! git diff --quiet || ! git diff --cached --quiet; then
@@ -42,19 +46,19 @@ projectSnapshot(){
 				echo -e "\e[1m[Rogue]\e[0m Pushing to $branch branch. \n"
 				git push origin "$branch"
 			else
-				echo -e "\e[1m[Rogue]\e[0m No changes, $dir is up to date, skipping..... "
+				echo -e "\e[1m[Rogue]\e[0m No changes, $dirBaseName is up to date, skipping..... "
 			fi
 		else
 			echo -e "\e[1m[Rogue]\e[0m Git repository not found, skipping....."
 		fi
-		echo "------------------------------------------------------------------"
+		echo "-----------------------------------------------------------------------------"
 	done
 	echo -e "\n\e[1m[Rogue]\e[0m Finished checking all project directories"
 	echo -e "\e[1m[Rogue]\e[0m Exiting......"
 }
 
 # Parse arguments
-# Disallow using certain flags with other flags
+# prevents using certain flags with other flags
 if [[ "$1" == "snapshot" && $# -gt 1 ]]; then
 	echo -e "\n\e[1m[Rogue]\e[0m Error: 'snapshot' flag must be used alone."
 	echo -e "\e[1m[Rogue]\e[0m Exiting......"
