@@ -24,7 +24,7 @@ cat << "EOF"
 EOF
 
 backup_projects(){
-echo -e "\n[~~~~~~~~~~~~~~~~~~~~|Backing up your projects|~~~~~~~~~~~~~~~~~~]"
+	echo -e "\n[~~~~~~~~~~~~~~~~~~~~|Backing up your projects|~~~~~~~~~~~~~~~~~~]"
 	for dir in $projects_dir*; do
 		if [ -d "$dir/.git" ]; then
 			echo -e "\e[1m[Rogue]\e[0m Checking for changes in $dir"
@@ -45,7 +45,7 @@ echo -e "\n[~~~~~~~~~~~~~~~~~~~~|Backing up your projects|~~~~~~~~~~~~~~~~~~]"
 			echo -e "\n[~~~~~~~~~~~~~~~~~~~~|Proceeding to next project|~~~~~~~~~~~~~~~~~~]"
 		fi
 	done
-	return 
+	return 1
 }
 
 # Parse arguments
@@ -57,6 +57,7 @@ while [[ $# -gt 0 ]]; do
 			
 		backup)
 			backup_projects
+			shift
 			;;
 			
 		-r) replace="true"; shift ;;
