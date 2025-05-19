@@ -26,21 +26,20 @@ EOF
 projectSnapshot(){
 	echo -e "\n[~~~~~~~~~~~~~~~~~~~~|Pushing snapshots of your projects|~~~~~~~~~~~~~~~~~~]"
 	for dir in $projects_dir*; do
-		echo " "
-		echo -e "\e[1m[Rogue]\e[0m Opening $dir."
+		echo -e "\n\e[1m[Rogue]\e[0m Opening $dir."
 		if [ -d "$dir/.git" ]; then
 			echo -e "\e[1m[Rogue]\e[0m Gir repository found, proceeding....."
 			echo -e "\e[1m[Rogue]\e[0m Checking for changes in $dir."
 			cd "$dir" || continue
 			
 			if ! git diff --quiet || ! git diff --cached --quiet; then
+				echo -e "\e[1m[Rogue]\e[0m Commiting changes"
 				git add -A
 				git commit -m "RoguePM: Project snapshot"
 				
 				branch=$(git symbolic-ref --short HEAD)
 				
-				echo -e "\e[1m[Rogue]\e[0m Pushing to $branch branch. "
-				echo ''
+				echo -e "\e[1m[Rogue]\e[0m Pushing to $branch branch. \n"
 				git push origin "$branch"
 			else
 				echo -e "\e[1m[Rogue]\e[0m No changes, $dir is up to date, skipping..... "
@@ -48,6 +47,7 @@ projectSnapshot(){
 		else
 			echo -e "\e[1m[Rogue]\e[0m Git repository not found, skipping....."
 		fi
+		echo "------------------------------------------------------------------"
 	done
 	echo -e "\n\e[1m[Rogue]\e[0m Finished checking all project directories"
 	echo -e "\e[1m[Rogue]\e[0m Exiting......"
