@@ -23,39 +23,52 @@ cat << "EOF"
                |___/             |_____|              
 EOF
 
-backup_projects(){
-	echo -e "\n[~~~~~~~~~~~~~~~~~~~~|Backing up your projects|~~~~~~~~~~~~~~~~~~]"
+projectSnapshot(){
+	echo -e "\n[~~~~~~~~~~~~~~~~~~~~|Pushing snapshots of your projects|~~~~~~~~~~~~~~~~~~]"
 	for dir in $projects_dir*; do
+		echo " "
+		echo -e "\e[1m[Rogue]\e[0m Opening $dir."
 		if [ -d "$dir/.git" ]; then
-			echo -e "\e[1m[Rogue]\e[0m Checking for changes in $dir"
+			echo -e "\e[1m[Rogue]\e[0m Gir repository found, proceeding....."
+			echo -e "\e[1m[Rogue]\e[0m Checking for changes in $dir."
 			cd "$dir" || continue
+			
 			if ! git diff --quiet || ! git diff --cached --quiet; then
 				git add -A
-				git commit -m "weekly snapshot/backup"
+				git commit -m "RoguePM: Project snapshot"
+				
 				branch=$(git symbolic-ref --short HEAD)
-				if [ "$branch" = "master" ] || [ "$branch" = "main" ]; then
-					echo -e "\e[1m[Rogue]\e[0m Pushing to Github remote in branch $branch"
-					git push origin "$branch"
-				else
-					echo -e "\e[1m[Rogue]\e[0m Skipping push: $dir is on branch $branch"
-				fi
+				
+				echo -e "\e[1m[Rogue]\e[0m Pushing to $branch branch. "
+				echo ''
+				git push origin "$branch"
 			else
-				echo -e "\e[1m[Rogue]\e[0m No changes is $dir, skipping..... "
+				echo -e "\e[1m[Rogue]\e[0m No changes, $dir is up to date, skipping..... "
 			fi
-			echo -e "\n[~~~~~~~~~~~~~~~~~~~~|Proceeding to next project|~~~~~~~~~~~~~~~~~~]"
+		else
+			echo -e "\e[1m[Rogue]\e[0m Git repository not found, skipping....."
 		fi
 	done
+	echo -e "\n\e[1m[Rogue]\e[0m Finished checking all project directories"
+	echo -e "\e[1m[Rogue]\e[0m Exiting......"
 }
 
 # Parse arguments
+# Disallow using certain flags with other flags
+if [[ "$1" == "snapshot" && $# -gt 1 ]]; then
+	echo -e "\n\e[1m[Rogue]\e[0m Error: 'snapshot' flag must be used alone."
+	echo -e "\e[1m[Rogue]\e[0m Exiting......"
+	return 1
+fi
+
 while [[ $# -gt 0 ]]; do
 	case "$1" in
 		new)read -p $'\e[1m[Rogue]\e[0m Enter project name: ' project_name
 			shift 
 			;;
 			
-		backup)
-			backup_projects
+		snapshot)
+			projectSnapshot
 			return 1
 			;;
 			
