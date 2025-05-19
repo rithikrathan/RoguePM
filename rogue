@@ -23,28 +23,49 @@ cat << "EOF"
                |___/             |_____|              
 EOF
 
+printHelp(){
+	 echo -e "\n\e[1mUsage:\e[0m source rogue <mode> [options]
+
+	 \e[1mModes:\e[0m
+	 new                   Create a new project (prompts for project name)
+	 snapshot              Push changes from all projects in the projects directory
+
+	 \e[1mOptions:\e[0m
+	 -r                    Replace existing directory if it exists
+	 -v <public|private>   Set repository visibility (default is private)
+	 -t <template_name>    Use a specific project template
+	 -m <commit_msg>       Initial commit message
+	 -d <description>      Project description for GitHub repo
+	 -l [license]          Add license file using GitHub CLI (default: mit)
+	 --help                Show this help message
+	 "
+ }
+
 projectSnapshot(){
 	echo -e "\n[~~~~~~~~~~~~~~~~~~~~|Pushing snapshots of your projects|~~~~~~~~~~~~~~~~~~]"
 	for dir in $projects_dir*; do
-		
-		dirBaseName=$(basename '$dir')
+		if [ ! -d "$dir" ]; then
+			continue
+		fi # skip non directory files
+
+		dirBaseName=$(basename "$dir") # get basename of the directories for some reason
 
 		echo -e "\n\e[1m[Rogue]\e[0m Opening $dirBaseName."
 		
 		if [ -d "$dir/.git" ]; then
-			echo -e "\e[1m[Rogue]\e[0m Gir repository found, proceeding....."
+			echo -e "\e[1m[Rogue]\e[0m Git repository found, proceeding....."
 			echo -e "\e[1m[Rogue]\e[0m Checking for changes in $dirBaseName."
 			cd "$dir" || continue
 			
 			if ! git diff --quiet || ! git diff --cached --quiet; then
 				echo -e "\e[1m[Rogue]\e[0m Commiting changes"
-				git add -A
-				git commit -m "RoguePM: Project snapshot"
+				# git add -A
+				# git commit -m "RoguePM: Project snapshot"
 				
-				branch=$(git symbolic-ref --short HEAD)
+				# branch=$(git symbolic-ref --short HEAD)
 				
-				echo -e "\e[1m[Rogue]\e[0m Pushing to $branch branch. \n"
-				git push origin "$branch"
+				# echo -e "\e[1m[Rogue]\e[0m Pushing to $branch branch. \n"
+				# git push origin "$branch"
 			else
 				echo -e "\e[1m[Rogue]\e[0m No changes, $dirBaseName is up to date, skipping..... "
 			fi
@@ -127,9 +148,17 @@ while [[ $# -gt 0 ]]; do
 			else
 				license="$2"; 
 			fi
-			
 			shift 2 ;;
-		*) echo "Usage: project -n <project_name> [-r {replaces existing directory in this name}] [-v <public|private>] [-m <commit_msg>]"; return 1 ;;
+			
+		--help)
+			printHelp
+			return 1
+			;;
+			
+		*)
+			echo -e "\n\e[1m[Rogue]\e[0m Invalid flags, try using --help to view available options"
+			echo -e "\e[1m[Rogue]\e[0m Exiting......"
+			return 1
 	esac
 done
 
@@ -180,6 +209,7 @@ echo -e "\e[1m[Rogue]\e[0m GitHub repository created: https://github.com/$GITHUB
 echo -e "\n[~~~~~~~~~~~~~~~|Creating Basic files and folders|~~~~~~~~~~~~~]"
 # runs the template script to setup the files
 echo -e "\e[1m[Rogue]\e[0m Using $template template......"
+# I hardcoded the path, cus I dont want to  use my brain for this
 ~/Desktop/projects/RoguePM/RogueTemplates/$template/$template.sh -n "$project_name" -l "$license" -m "$commit_msg"
 
 

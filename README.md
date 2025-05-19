@@ -1,13 +1,14 @@
 # Rogue_PM
 
-Rogue_PM is a lightweight CLI-based project manager written in Bash. It automates the creation of new project directories, initializes Git repositories, connects them to GitHub via the GitHub CLI, and populates them using predefined templates.
+Rogue_PM is a basic CLI based project manager I made as a hobby to learn Bash scripting. The methods are simple and straightforward, done with the best of my knowledge.
 
 ## Features
 
-- Create and scaffold new project folders
+- Create new project folders
+- Use custom templates to create files and folders in the project folder
 - Initialize local Git repos and push to GitHub
-- Use custom templates for different project types
-- Simple CLI interface
+- Push all changes in all project folders (snapshot feature)
+- Add a license automatically from GitHub
 
 ## Potential future additions
 
@@ -36,7 +37,11 @@ Rogue_PM is a lightweight CLI-based project manager written in Bash. It automate
 ## Usage
 
 ```bash
-source Rogue.sh new <flags>
+source rogue <mode> [flags]
+
+#Mode:
+# new                       : Creates the project directory based on the given template
+# snapshot                       : Creates the project directory based on the given template
 
 # Flags:
 # -t <template name>        : Creates the project directory based on the given template
@@ -44,4 +49,5 @@ source Rogue.sh new <flags>
 # -v <public/private>       : Sets the GitHub repository's visibility (default: private)
 # -m <initial commit msg>   : Initial commit message (default: "initial commit")
 # -l <project license>      : Specifies the license to add (default: "mit")t")
-
+# -d <github description>   : Adds description message to your github repository
+# --help                    : Show help message
