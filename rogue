@@ -27,7 +27,7 @@ projectSnapshot(){
 	echo -e "\n[~~~~~~~~~~~~~~~~~~~~|Pushing snapshots of your projects|~~~~~~~~~~~~~~~~~~]"
 	for dir in $projects_dir*; do
 		
-		dirBaseName=basename $dir
+		dirBaseName=$(basename '$dir')
 
 		echo -e "\n\e[1m[Rogue]\e[0m Opening $dirBaseName."
 		
