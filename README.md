@@ -20,7 +20,6 @@ Rogue_PM is a basic CLI based project manager I made as a hobby to learn Bash sc
 
 ## Requirements
 
-- Bash
 - `git`
 - `gh` (GitHub CLI)
 
@@ -32,7 +31,7 @@ Rogue_PM is a basic CLI based project manager I made as a hobby to learn Bash sc
     cd RoguePM
 2. Make the script executable:
     ```bash
-    chmod +x Rogue.sh
+    chmod +x rogue
 
 ## Usage
 
@@ -41,13 +40,13 @@ source rogue <mode> [flags]
 
 #Mode:
 # new                       : Creates the project directory based on the given template
-# snapshot                       : Creates the project directory based on the given template
+# snapshot                       : push changes to github in all of your projects in your project diretory(only if it has a git repo and has changes).
 
 # Flags:
 # -t <template name>        : Creates the project directory based on the given template
 # -r                        : If a directory with the project name already exists, it will be replaced (existing files will be deleted)
 # -v <public/private>       : Sets the GitHub repository's visibility (default: private)
 # -m <initial commit msg>   : Initial commit message (default: "initial commit")
-# -l <project license>      : Specifies the license to add (default: "mit")t")
+# -l <project license>      : Specifies the license to add (default: "mit")
 # -d <github description>   : Adds description message to your github repository
 # --help                    : Show help message
