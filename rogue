@@ -6,8 +6,7 @@
 CONFIG_FILE="$HOME/.roguerc"
 PROJECTS_DIR="$HOME/Desktop/projects"
 TEMPLATES_DIR="$HOME/Desktop/projects/RoguePM/RogueTemplates"
-LOCAL_PROJECTS_LIST="$HOME/.rogue_rp.list"
-
+LOCAL_PROJECTS_LIST="$HOME/Desktop/projects/RoguePM/rp.list"
 # Source config file if it exists to override defaults
 if [ -f "$CONFIG_FILE" ]; then
     source "$CONFIG_FILE"
@@ -26,7 +25,7 @@ log_error() {
 
 print_banner() {
     cat << "EOF"
-  ____                                   ____   __  __ 
+  ____                                  ____   __  __ 
  |  _ \  ___    __ _  _   _  ___       |  _ \ |  \/  |
  | |_) |/ _ \  / _` || | | | / _ \     | |_) || |\/| |
  |  _ <| (_) || (_| || |_| ||  __/     |  __/ | |  | |
@@ -40,8 +39,9 @@ print_help() {
     echo -e "\n\e[1mModes:\e[0m"
     echo -e "  new          Create a new project (run 'rogue new --help' for options)"
     echo -e "  snapshot     Push changes from all projects in the projects directory"
-    echo -e "  open         Open a project directory using fzf (run 'rogue open --help' for options)"
+    echo -e "  open         Open a project directory using fzf/rofi (run 'rogue open --help' for options)"
     echo -e "  setPat       Embeds \$GHPAT from your environment into the git remote URL"
+    echo -e "  addRemote    Creates and adds a GitHub remote for the current local repository"
     echo -e "  help         Show this general help message\n"
 }
 
@@ -87,6 +87,7 @@ cmd_snapshot() {
 cmd_new() {
     local replace="false"
     local create_local="false"
+    local create_remote="false"
     local project_name=""
     local visibility="private"
     local commit_msg="Initial commit"
@@ -99,6 +100,7 @@ cmd_new() {
         case "$1" in
             -r|--replace) replace="true"; shift ;;
             --local) create_local="true"; shift ;;
+            --remote) create_remote="true"; shift ;;
             -v|--visibility) 
                 if [[ "$2" != "public" && "$2" != "private" ]]; then
                     log_error "Visibility must be 'public' or 'private'."
@@ -139,6 +141,7 @@ cmd_new() {
                 echo -e "\n\e[1mUsage:\e[0m source rogue new [project_name] [options]"
                 echo -e "  -r                 Replace existing directory if it exists"
                 echo -e "  --local            Create project in current working directory instead of $PROJECTS_DIR"
+                echo -e "  --remote           Create and push to a new GitHub repository"
                 echo -e "  -v <pub|priv>      Set repository visibility (default is private)"
                 echo -e "  -t <template>      Use a specific project template"
                 echo -e "  -m <message>       Initial commit message"
@@ -156,22 +159,32 @@ cmd_new() {
         esac
     done
 
-    echo -e "\n[~~~~~~~~~~~~~~~~~|Creating GitHub repository|~~~~~~~~~~~~~~~~~]"
-    if ! gh auth status &>/dev/null; then
-        log_error "GitHub CLI is not authenticated or timed out. Run 'gh auth login' first."
-        return 1
-    fi
-
-    local github_user
-    github_user=$(gh api user --jq .login)
-    
     if [ -z "$project_name" ]; then
         read -p $'\e[1m[Rogue]\e[0m Enter project name: ' project_name
     fi
 
-    git init
-    gh repo create "$project_name" --"$visibility" --source=. --remote=origin --description "$desc_msg"
-    log_info "GitHub repository created: https://github.com/$github_user/$project_name"
+    # ==========================================
+    # PRE-FLIGHT CHECK: Network & Auth
+    # ==========================================
+    local github_user=""
+    if [ "$create_remote" == "true" ]; then
+        echo -e "\n[~~~~~~~~~~~~~~~~~|Checking GitHub Connectivity|~~~~~~~~~~~~~~~~~]"
+        
+        if ! github_user=$(gh api user --jq .login 2>/dev/null); then
+            log_error "Cannot reach GitHub or GitHub CLI is not authenticated."
+            read -p $'\e[1m[Rogue]\e[0m Continue with local folder setup only? (y/n): ' fallback_choice
+            
+            if [[ "$fallback_choice" =~ ^[Yy]$ ]]; then
+                log_info "Proceeding with local setup. (Skipping remote creation)"
+                create_remote="false"
+            else
+                log_info "Aborting project creation safely. No files were created."
+                return 1
+            fi
+        else
+            log_info "GitHub is reachable. Logged in as: $github_user"
+        fi
+    fi
 
     echo -e "\n[~~~~~~~~~~~~~~~~~~|Creating project directory|~~~~~~~~~~~~~~~~]"
 
@@ -200,6 +213,14 @@ cmd_new() {
     log_info "Current directory is set to $target_dir"
     cd "$target_dir" || return 1
 
+    echo -e "\n[~~~~~~~~~~~~~~~~~|Initializing Version Control|~~~~~~~~~~~~~~~~~]"
+    git init
+
+    if [ "$create_remote" == "true" ]; then
+        gh repo create "$project_name" --"$visibility" --source=. --remote=origin --description "$desc_msg"
+        log_info "GitHub repository created: https://github.com/$github_user/$project_name"
+    fi
+
     echo -e "\n[~~~~~~~~~~~~~~~|Creating Basic files and folders|~~~~~~~~~~~~~]"
     log_info "Using '$template' template......"
     local template_script="$TEMPLATES_DIR/$template/$template.sh"
@@ -214,10 +235,79 @@ cmd_new() {
     git add .
     git commit -m "$commit_msg"
 
-    echo -e "\n[~~~~~~~~~~~~~~~~~~~~|Pushing to \e[1mMaster\e[0m branch|~~~~~~~~~~~~~~~~~~]"
-    git push -u origin master
+    if [ "$create_remote" == "true" ]; then
+        echo -e "\n[~~~~~~~~~~~~~~~~~~~~|Pushing to \e[1mMaster\e[0m branch|~~~~~~~~~~~~~~~~~~]"
+        git push -u origin master
+    fi
     
     log_info "Finished creating project: $project_name"
+}
+
+# ==========================================
+# COMMAND: ADD REMOTE
+# ==========================================
+cmd_addRemote() {
+    local visibility="private"
+    local desc_msg="Repository created via RoguePM"
+    local project_name=$(basename "$PWD")
+
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            -v|--visibility) 
+                if [[ "$2" != "public" && "$2" != "private" ]]; then
+                    log_error "Visibility must be 'public' or 'private'."
+                    return 1
+                fi
+                visibility="$2"
+                shift 2 ;;
+            -d|--description) 
+                [ -z "$2" ] && { log_error "Description cannot be empty."; return 1; }
+                desc_msg="$2"
+                shift 2 ;;
+            -n|--name) 
+                [ -z "$2" ] && { log_error "Project name cannot be empty."; return 1; }
+                project_name="$2"
+                shift 2 ;;
+            --help|-h)
+                echo -e "\n\e[1mUsage:\e[0m source rogue addRemote [options]"
+                echo -e "  -v <pub|priv>      Set repository visibility (default is private)"
+                echo -e "  -d <description>   Project description for GitHub repo"
+                echo -e "  -n <name>          Specific repository name (defaults to current folder name)"
+                return 0 ;;
+            *) log_error "Invalid flag for 'addRemote': $1"; return 1 ;;
+        esac
+    done
+
+    echo -e "\n[~~~~~~~~~~~~~~~~~|Adding GitHub Remote|~~~~~~~~~~~~~~~~~]"
+
+    if ! git rev-parse --is-inside-work-tree > /dev/null 2>&1; then
+        log_error "You are not inside a git repository. Navigate to a project or run 'git init'."
+        return 1
+    fi
+
+    # Network / Auth Pre-flight Check
+    local github_user=""
+    if ! github_user=$(gh api user --jq .login 2>/dev/null); then
+        log_error "Cannot reach GitHub or GitHub CLI is not authenticated."
+        log_info "Aborting remote creation. Ensure you have internet and have run 'gh auth login'."
+        return 1
+    fi
+
+    # Check if 'origin' already exists
+    if git remote get-url origin > /dev/null 2>&1; then
+        log_error "A remote named 'origin' already exists for this repository."
+        return 1
+    fi
+
+    log_info "Creating GitHub repository: $project_name ($visibility)..."
+    gh repo create "$project_name" --"$visibility" --source=. --remote=origin --description "$desc_msg"
+    log_info "GitHub repository created: https://github.com/$github_user/$project_name"
+
+    # Push to whatever branch they are currently on
+    local branch=$(git symbolic-ref --short HEAD 2>/dev/null || echo "master")
+    
+    echo -e "\n[~~~~~~~~~~~~~~~~~~~~|Pushing to \e[1m$branch\e[0m branch|~~~~~~~~~~~~~~~~~~]"
+    git push -u origin "$branch"
 }
 
 # ==========================================
@@ -271,41 +361,36 @@ cmd_setPat() {
 # COMMAND: OPEN
 # ==========================================
 cmd_open() {
-    local use_terminal="false"
+    local run_session="false"
     local use_gui="false"
+    local open_term="false"
+    local open_explorer="false"
 
     while [[ $# -gt 0 ]]; do
         case "$1" in
-			-t|--terminal) use_terminal="true"; us_gui="false"; shift ;;
-            -g|--gui) use_gui="true"; use_terminal="false"; shift ;;
+            -t|--terminal) run_session="true"; shift ;;
+            -g|--gui) use_gui="true"; shift ;;
+            --term) open_term="true"; shift ;;
+            --explorer) open_explorer="true"; shift ;;
             --help|-h)
                 echo -e "\n\e[1mUsage:\e[0m source rogue open [options]"
                 echo -e "  -t, --terminal     Run session.sh in the selected project directory"
+                echo -e "  -g, --gui          Use rofi instead of fzf for selection"
+                echo -e "  --term             Open project in a new Alacritty window"
+                echo -e "  --explorer         Open project in Nautilus file manager"
                 return 0 ;;
             *) log_error "Invalid flag for 'open': $1"; return 1 ;;
         esac
     done
 
-    # Ensure fzf is installed
-    if ! command -v fzf &> /dev/null; then
-        log_error "'fzf' is not installed. Please install it to use the open command."
-        return 1
-    fi
-
-    if ! command -v rofi &> /dev/null; then
-        log_error "'rofi' is not installed. Please install it to use the open command."
-        return 1
-    fi
-
     declare -a fzf_entries
-    declare -a proj_paths # Kept just for tracking duplicates
+    declare -a proj_paths
 
     # 1. Gather projects from the main directory
     if [ -d "$PROJECTS_DIR" ]; then
         for dir in "$PROJECTS_DIR"/*; do
             if [ -d "$dir" ]; then
                 proj_paths+=("$dir")
-                # Format: ProjectName  |  /path/to/project
                 fzf_entries+=("$(basename "$dir")  |  $dir")
             fi
         done
@@ -315,28 +400,35 @@ cmd_open() {
     if [ -f "$LOCAL_PROJECTS_LIST" ]; then
         while IFS= read -r dir; do
             if [ -d "$dir" ]; then
-                # Only add if it's not already in the main directory array
                 if [[ ! " ${proj_paths[*]} " =~ " ${dir} " ]]; then
                     proj_paths+=("$dir")
-                    # Format: ProjectName [Local]  |  /path/to/project
                     fzf_entries+=("$(basename "$dir") [Local]  |  $dir")
                 fi
             fi
         done < "$LOCAL_PROJECTS_LIST"
     fi
 
-    # If nothing was found
     if [ ${#fzf_entries[@]} -eq 0 ]; then
         log_error "No projects found."
         return 1
     fi
 
-
-
-
-    # 3. Pipe to fzf and get user selection
+    # 3. Pipe to either fzf or rofi based on flags
     local selected_line
-    selected_line=$(printf "%s\n" "${fzf_entries[@]}" | fzf --prompt="Rogue Open > " --height=40% --layout=reverse --border=rounded)
+    
+    if [ "$use_gui" == "true" ]; then
+        if ! command -v rofi &> /dev/null; then
+            log_error "'rofi' is not installed. Please install it to use the -g flag."
+            return 1
+        fi
+        selected_line=$(printf "%s\n" "${fzf_entries[@]}" | rofi -dmenu -i -p "Rogue Open")
+    else
+        if ! command -v fzf &> /dev/null; then
+            log_error "'fzf' is not installed. Please install it to use the open command."
+            return 1
+        fi
+        selected_line=$(printf "%s\n" "${fzf_entries[@]}" | fzf --prompt="[Rogue] Open > " --height=40% --border=rounded --color="prompt:#ff2030,info:#40ff20,pointer:#ff2030")
+    fi
 
     # Check if user pressed escape/Ctrl+C
     if [ -z "$selected_line" ]; then
@@ -347,22 +439,35 @@ cmd_open() {
     local target_dir
     target_dir=$(echo "$selected_line" | awk -F ' \\|  ' '{print $2}')
 
-    log_info "Selected: $target_dir"
+    # 5. Handle Execution Flags
+    if [ "$open_explorer" == "true" ]; then
+        if command -v nautilus &> /dev/null; then
+            log_info "Opening Nautilus..."
+            nautilus "$target_dir" > /dev/null 2>&1 &
+        else
+            log_error "Nautilus is not installed."
+        fi
+    fi
 
-    # Handle the action based on the flag
-    if [ "$use_terminal" == "true" ]; then
+    if [ "$open_term" == "true" ]; then
+        if command -v alacritty &> /dev/null; then
+            log_info "Opening Alacritty..."
+            alacritty --working-directory "$target_dir" > /dev/null 2>&1 &
+        else
+            log_error "Alacritty is not installed."
+        fi
+    fi
+
+    if [ "$run_session" == "true" ]; then
         if [ -f "$target_dir/session.sh" ]; then
             log_info "Executing session.sh..."
             cd "$target_dir" || return 1
-			chmod +x ./session.sh
+            chmod +x ./session.sh
             ./session.sh
-			return 0
-        else
-            log_error "session.sh not found inside $target_dir"
-            return 1
+            return 0
         fi
     else
-        log_info "Entering $target_dir..."
+        # log_info "Entering $target_dir..."
         cd "$target_dir" || return 1
     fi
 }
@@ -371,7 +476,7 @@ cmd_open() {
 # MAIN DISPATCHER
 # ==========================================
 main() {
-    print_banner # Optional: might be annoying to print the big banner every time with fzf now
+    print_banner
 
     if [[ $# -eq 0 ]]; then
         print_help
@@ -383,19 +488,15 @@ main() {
 
     case "$command" in
         new) cmd_new "$@" ;;
-
         snapshot)
             [[ $# -gt 0 ]] && { log_error "'snapshot' takes no arguments."; return 1; }
             cmd_snapshot ;;
-
+        addRemote) cmd_addRemote "$@" ;;
         setPat)
             [[ $# -gt 0 ]] && { log_error "'setPat' takes no arguments."; return 1; }
             cmd_setPat ;;
-
         open) cmd_open "$@" ;;
-
-		--help|-h|help) print_help ;;
-
+        --help|-h|help) print_help ;;
         *)
             log_error "Unknown command: $command"
             print_help
