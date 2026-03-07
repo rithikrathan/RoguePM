@@ -48,8 +48,8 @@ if [ -d "$FILES_DIR" ];then
 	done
 	shopt -u dotglob
 elif [ ! -d "$FILES_DIR" ];then
-	echo -e "\e[1m[Rogue]\e[0m Additional files not found, skipping....."
-	return 1
+	echo -e "\e[1;3;31m[Rogue]\e[0m Additional files not found, skipping....."
+	# return 1
 else
-	echo -e "\e[1m[Rogue]\e[0m yeah something fishy this shouldn't happen"
+	echo -e "\e[1;3;31m[Rogue]\e[0m yeah something fishy this shouldn't happen"
 fi
