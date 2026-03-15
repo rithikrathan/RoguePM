@@ -1,0 +1,15 @@
+
+
+1. integrate managing dotfiles  to rogue both import and export
+
+2. use a simple version control like software to keep track of profiles and each profile
+	will have its own set of dotfiles
+	*also i want to write a simple version control like system that takes care of the profiles 
+
+3. i've heard this somewhere, apparantly you can like store the dotfiles in a single dir
+	 and create a links to them in the main path so there is no need for copying stuffs
+
+
+
+
+
