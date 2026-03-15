@@ -93,114 +93,78 @@ cmd_snapshot() {
     
     declare -a report_repos
     declare -a report_statuses
+    declare -a target_dirs
 
+    # 1. Gather main projects
     for dir in "$PROJECTS_DIR"/*; do
-        [ ! -d "$dir" ] && continue 
+        [ -d "$dir" ] && target_dirs+=("$dir")
+    done
 
-        local dirBaseName=$(basename "$dir")
-        local tmp_status=$(mktemp)
-        local tmp_err=$(mktemp)
-
-        # ---------------------------------------------------------
-        # BACKGROUND WORKER
-        # ---------------------------------------------------------
-        (
-            echo "Opening repo..." > "$tmp_status"
-            if [ ! -d "$dir/.git" ]; then
-                echo "SKIPPED:Not a git repository" > "$tmp_status"
-                exit 0
+    # 2. Gather local projects from rp.list
+    if [ -f "$LOCAL_PROJECTS_LIST" ]; then
+        while IFS= read -r dir; do
+            if [ -d "$dir" ]; then
+                # Prevent duplicates
+                if [[ ! " ${target_dirs[*]} " =~ " ${dir} " ]]; then
+                    target_dirs+=("$dir")
+                fi
             fi
+        done < "$LOCAL_PROJECTS_LIST"
+    fi
 
-            cd "$dir" || exit 1
+    if [ ${#target_dirs[@]} -eq 0 ]; then
+        log_info "No projects found to snapshot."
+        return 0
+    fi
+
+    # 3. Process all gathered directories
+    for dir in "${target_dirs[@]}"; do
+        local dirBaseName=$(basename "$dir")
+        log_divider "Target: $dirBaseName"
+        
+        if [ -d "$dir/.git" ]; then
+            cd "$dir" || continue
             
             if ! git diff --quiet || ! git diff --cached --quiet; then
-                echo "Committing changes..." > "$tmp_status"
+                log_info "Committing changes..."
                 git add -A
-                git commit -m "RoguePM: Project snapshot" > /dev/null 2>&1
+                git commit -m "RoguePM: Project snapshot"
                 
                 local remotes=$(git remote)
                 if [ -z "$remotes" ]; then
-                    echo "SUCCESS:Committed locally (No remotes)" > "$tmp_status"
-                    exit 0
+                    log_info "No cloud remotes configured. Changes committed locally."
+                    report_repos+=("$dirBaseName")
+                    report_statuses+=("${GREEN}Committed locally${RESET}")
+                    continue
                 fi
 
+                local push_failed=false
                 for r in $remotes; do
-                    echo "Pushing to $r..." > "$tmp_status"
-                    if ! git push "$r" master > "$tmp_err" 2>&1; then
-                        # Parse the error to give a specific reason
-                        if grep -q -i "non-fast-forward\|fetch first\|rejected" "$tmp_err"; then
-                            echo "ERROR:Conflict detected on $r (Skipping)" > "$tmp_status"
-                        else
-                            echo "ERROR:Push failed on $r (Skipping)" > "$tmp_status"
-                        fi
-                        exit 1
+                    log_info "Pushing to remote: ${BOLD}$r${RESET} (master branch)..."
+                    
+                    if ! git push "$r" master; then
+                        push_failed=true
+                        log_error "Push failed for remote: $r"
                     fi
                 done
-                echo "SUCCESS:Pushed successfully" > "$tmp_status"
-                exit 0
+
+                if [ "$push_failed" = true ]; then
+                    report_repos+=("$dirBaseName")
+                    report_statuses+=("${ROGUE_RED}Push Error/Conflict${RESET}")
+                else
+                    report_repos+=("$dirBaseName")
+                    report_statuses+=("${GREEN}Pushed Successfully${RESET}")
+                fi
             else
-                echo "SKIPPED:Up to date" > "$tmp_status"
-                exit 0
+                log_info "No changes, up to date. Skipping..."
+                report_repos+=("$dirBaseName")
+                report_statuses+=("${YELLOW}Up to date${RESET}")
             fi
-        ) &
-        local worker_pid=$!
-
-        # ---------------------------------------------------------
-        # FOREGROUND THROBBER
-        # ---------------------------------------------------------
-        local spinstr='|/-\'
-        local i=0
-        local current_msg=""
-        
-        while kill -0 $worker_pid 2>/dev/null; do
-            local new_msg=$(cat "$tmp_status" 2>/dev/null)
-            
-            # Update the inline message only if it's a processing state (not the final status code)
-            if [[ "$new_msg" != SUCCESS:* && "$new_msg" != ERROR:* && "$new_msg" != SKIPPED:* ]]; then
-                current_msg="$new_msg"
-            fi
-            
-            local char=${spinstr:i++%${#spinstr}:1}
-            # \r returns to start of line, \e[K clears the rest of the line
-            printf "\r${ROGUE_RED}[Rogue]${RESET} ${CYAN}[%s]${RESET} %-20s : %s\e[K" "$char" "$dirBaseName" "$current_msg"
-            sleep 0.1
-        done
-        wait $worker_pid
-        
-        # ---------------------------------------------------------
-        # RESULT PROCESSING
-        # ---------------------------------------------------------
-        local final_msg=$(cat "$tmp_status" 2>/dev/null)
-        rm -f "$tmp_status" "$tmp_err"
-
-        local print_status=""
-        local color_status=""
-        local check_mark=""
-        
-        if [[ "$final_msg" == SUCCESS:* ]]; then
-            print_status="${final_msg#SUCCESS:}"
-            color_status="${GREEN}${print_status}${RESET}"
-            check_mark="${GREEN}[✓]${RESET}"
-        elif [[ "$final_msg" == ERROR:* ]]; then
-            print_status="${final_msg#ERROR:}"
-            color_status="${ROGUE_RED}${print_status}${RESET}"
-            check_mark="${ROGUE_RED}[✗]${RESET}"
-        elif [[ "$final_msg" == SKIPPED:* ]]; then
-            print_status="${final_msg#SKIPPED:}"
-            color_status="${YELLOW}${print_status}${RESET}"
-            check_mark="${YELLOW}[-]${RESET}"
         else
-            print_status="Unknown Error"
-            color_status="${YELLOW}${print_status}${RESET}"
-            check_mark="${YELLOW}[?]${RESET}"
+            log_info "Not a git repository. Skipping..."
+            report_repos+=("$dirBaseName")
+            report_statuses+=("${YELLOW}Not a git repo${RESET}")
         fi
-
-        # Overwrite the throbber line with the final status for this repository
-        printf "\r${ROGUE_RED}[Rogue]${RESET} %b %-20s : %b\e[K\n" "$check_mark" "$dirBaseName" "$color_status"
-
-        report_repos+=("$dirBaseName")
-        report_statuses+=("$color_status")
-
     done
     
     # ---------------------------------------------------------
@@ -209,10 +173,9 @@ cmd_snapshot() {
     echo ""
     log_divider "SNAPSHOT SUMMARY REPORT"
     printf "  %-25s | %s\n" "Repository" "Status"
-    printf "  %.0s-" {1..60}
+    printf "  %.0s-" {1..55}
     echo ""
     for i in "${!report_repos[@]}"; do
-        # We print the colored status at the end so it doesn't break the padding alignment of the first column
         printf "  %-25s | %b\n" "${report_repos[$i]}" "${report_statuses[$i]}"
     done
     echo ""
