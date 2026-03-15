@@ -9,6 +9,10 @@ TEMPLATES_DIR="$HOME/Desktop/projects/RoguePM/RogueTemplates"
 LOCAL_PROJECTS_LIST="$HOME/Desktop/projects/RoguePM/rp.list"
 DEFAULT_REMOTE="github"
 
+# Default Applications (Override these in your .roguerc if needed)
+TERMINAL_APP="alacritty"
+FILE_MANAGER="nautilus"
+
 if [ -f "$CONFIG_FILE" ]; then
     source "$CONFIG_FILE"
 fi
@@ -16,7 +20,8 @@ fi
 # ==========================================
 # UTILITY FUNCTIONS & AESTHETICS
 # ==========================================
-ROGUE_RED="\e[1;3;31m"
+ROGUE_RED_ITALIC="\e[1;3;31m" # Used for all text/prompts
+ROGUE_RED_SOLID="\e[1;31m"    # Used for ASCII art 
 GREEN="\e[32m"
 YELLOW="\e[33m"
 CYAN="\e[36m"
@@ -24,15 +29,15 @@ RESET="\e[0m"
 BOLD="\e[1m"
 
 log_info() {
-    echo -e "${ROGUE_RED}[Rogue]${RESET} $1"
+    echo -e "${ROGUE_RED_ITALIC}[Rogue]${RESET} $1"
 }
 
 log_success() {
-    echo -e "${ROGUE_RED}[Rogue]${RESET} ${GREEN}$1${RESET}"
+    echo -e "${ROGUE_RED_ITALIC}[Rogue]${RESET} ${GREEN}$1${RESET}"
 }
 
 log_error() {
-    echo -e "${ROGUE_RED}[Rogue]${RESET} ${YELLOW}Error:${RESET} $1" >&2
+    echo -e "${ROGUE_RED_ITALIC}[Rogue]${RESET} ${YELLOW}Error:${RESET} $1" >&2
 }
 
 log_prompt() {
@@ -40,11 +45,11 @@ log_prompt() {
 }
 
 log_divider() {
-    echo -e "\n${ROGUE_RED}[Rogue]${RESET} ${BOLD}$1${RESET}"
+    echo -e "\n${ROGUE_RED_ITALIC}[Rogue]${RESET} ${BOLD}$1${RESET}"
 }
 
 print_banner() {
-    echo -e "${ROGUE_RED}"
+    echo -e "${ROGUE_RED_SOLID}"
     cat << "EOF"
   ____                                  ____   __  __ 
  |  _ \  ___    __ _  _   _  ___       |  _ \ |  \/  |
@@ -57,15 +62,14 @@ EOF
 }
 
 print_help() {
-    log_divider "COMMAND MENU"
-    log_info "Usage: source rogue <mode> [options]"
-    echo ""
-    log_info "${BOLD}new${RESET}          Create a new project (run 'rogue new --help')"
-    log_info "${BOLD}snapshot${RESET}     Push changes from all projects to ALL configured remotes"
-    log_info "${BOLD}open${RESET}         Open a project directory using fzf/rofi"
-    log_info "${BOLD}setPat${RESET}       Embeds \$GHPAT/\$GLPAT into all HTTPS git remote URLs"
-    log_info "${BOLD}addRemote${RESET}    Creates and adds a specified remote (github/gitlab)"
-    log_info "${BOLD}help${RESET}         Show this general help message\n"
+    echo -e "\n${ROGUE_RED_ITALIC}[Rogue]${RESET} ${BOLD}COMMAND MENU${RESET}"
+    echo -e "Usage: source rogue <mode> [options]\n"
+    echo -e "  ${BOLD}new${RESET}          Create a new project (run 'rogue new --help')"
+    echo -e "  ${BOLD}snapshot${RESET}     Push changes from all projects to ALL configured remotes"
+    echo -e "  ${BOLD}open${RESET}         Open a project directory using fzf/rofi"
+    echo -e "  ${BOLD}setPat${RESET}       Embeds \$GHPAT/\$GLPAT into all HTTPS git remote URLs"
+    echo -e "  ${BOLD}addRemote${RESET}    Creates and adds a specified remote (github/gitlab)"
+    echo -e "  ${BOLD}help${RESET}         Show this general help message\n"
 }
 
 # --- Auth Checkers ---
@@ -150,7 +154,7 @@ cmd_snapshot() {
 
                 if [ "$push_failed" = true ]; then
                     report_repos+=("$dirBaseName")
-                    report_statuses+=("${ROGUE_RED}Push Error/Conflict${RESET}")
+                    report_statuses+=("${ROGUE_RED_ITALIC}Push Error/Conflict${RESET}")
                 else
                     report_repos+=("$dirBaseName")
                     report_statuses+=("${GREEN}Pushed Successfully${RESET}")
@@ -199,6 +203,13 @@ cmd_new() {
         case "$1" in
             -r|--replace) replace="true"; shift ;;
             --local) create_local="true"; shift ;;
+            -v|--visibility) 
+                if [[ "$2" != "public" && "$2" != "private" ]]; then
+                    log_error "Visibility must be 'public' or 'private'."
+                    return 1
+                fi
+                visibility="$2"
+                shift 2 ;;
             --remote) 
                 if [[ "$2" != "github" && "$2" != "gitlab" && "$2" != "both" ]]; then
                     log_error "--remote must be 'github', 'gitlab', or 'both'."
@@ -230,14 +241,15 @@ cmd_new() {
                     license="$2"; shift 2
                 fi ;;
             --help|-h)
-                log_divider "NEW COMMAND USAGE"
-                log_info "source rogue new [project_name] [options]"
-                log_info "  -r                 Replace existing directory if it exists"
-                log_info "  --local            Create project in current working directory"
-                log_info "  --remote <target>  Target platform: 'github', 'gitlab', or 'both'"
-                log_info "  -t <template>      Use a specific project template"
-                log_info "  -m <message>       Initial commit message"
-                log_info "  -d <description>   Project description"
+                echo -e "\n${ROGUE_RED_ITALIC}[Rogue]${RESET} ${BOLD}NEW COMMAND USAGE${RESET}"
+                echo -e "source rogue new [project_name] [options]\n"
+                echo -e "  -r                  Replace existing directory if it exists"
+                echo -e "  --local             Create project in current working directory"
+                echo -e "  --remote <target>   Target platform: 'github', 'gitlab', or 'both'"
+                echo -e "  -v <public|private> Set repository visibility (default is private)"
+                echo -e "  -t <template>       Use a specific project template"
+                echo -e "  -m <message>        Initial commit message"
+                echo -e "  -d <description>    Project description"
                 return 0 ;;
             *)
                 if [[ -z "$project_name" && "$1" != -* ]]; then
@@ -251,8 +263,26 @@ cmd_new() {
 
     [ -z "$project_name" ] && log_prompt "Enter project name: " project_name
 
-    if [[ "$target_remote" == "github" || "$target_remote" == "both" ]]; then check_github_auth || return 1; fi
-    if [[ "$target_remote" == "gitlab" || "$target_remote" == "both" ]]; then check_gitlab_auth || return 1; fi
+    # Pre-flight check with Fallback Prompt
+    local auth_failed="false"
+    if [[ "$target_remote" == "github" || "$target_remote" == "both" ]]; then 
+        check_github_auth || auth_failed="true"
+    fi
+    if [[ "$target_remote" == "gitlab" || "$target_remote" == "both" ]]; then 
+        check_gitlab_auth || auth_failed="true"
+    fi
+
+    if [ "$auth_failed" == "true" ]; then
+        local fallback_choice
+        log_prompt "Continue with local folder setup only? (y/n): " fallback_choice
+        if [[ "$fallback_choice" =~ ^[Yy]$ ]]; then
+            log_info "Proceeding with local setup. (Skipping remote creation)"
+            target_remote=""
+        else
+            log_info "Aborting project creation safely. No files were created."
+            return 1
+        fi
+    fi
 
     log_divider "--- Provisioning Workspace ---"
     
@@ -299,8 +329,8 @@ cmd_new() {
         log_divider "--- Provisioning Cloud Remotes ---"
         
         if [[ "$target_remote" == "github" || "$target_remote" == "both" ]]; then
-            log_info "Generating GitHub repo..."
-            gh repo create "$project_name" --private --description "$desc_msg" > /dev/null 2>&1
+            log_info "Generating GitHub repo ($visibility)..."
+            gh repo create "$project_name" --"$visibility" --description "$desc_msg" > /dev/null 2>&1
             local gh_user=$(gh api user --jq .login)
             git remote add github "https://github.com/$gh_user/$project_name.git"
             log_info "Pushing to GitHub..."
@@ -308,8 +338,8 @@ cmd_new() {
         fi
 
         if [[ "$target_remote" == "gitlab" || "$target_remote" == "both" ]]; then
-            log_info "Generating GitLab repo..."
-            glab repo create "$project_name" --private --description "$desc_msg" > /dev/null 2>&1
+            log_info "Generating GitLab repo ($visibility)..."
+            glab repo create "$project_name" --"$visibility" --description "$desc_msg" > /dev/null 2>&1
             local gl_user=$(glab api user -q '.username')
             git remote add gitlab "https://gitlab.com/$gl_user/$project_name.git"
             log_info "Pushing to GitLab..."
@@ -325,6 +355,7 @@ cmd_new() {
 # ==========================================
 cmd_addRemote() {
     local target_remote=""
+    local visibility="private"
     local desc_msg="Repository created via RoguePM"
     local project_name=$(basename "$PWD")
 
@@ -337,6 +368,13 @@ cmd_addRemote() {
                 fi
                 target_remote="$2"
                 shift 2 ;;
+            -v|--visibility) 
+                if [[ "$2" != "public" && "$2" != "private" ]]; then
+                    log_error "Visibility must be 'public' or 'private'."
+                    return 1
+                fi
+                visibility="$2"
+                shift 2 ;;
             -d|--description) 
                 [ -z "$2" ] && { log_error "Description cannot be empty."; return 1; }
                 desc_msg="$2"
@@ -346,11 +384,12 @@ cmd_addRemote() {
                 project_name="$2"
                 shift 2 ;;
             --help|-h)
-                log_divider "ADD REMOTE USAGE"
-                log_info "source rogue addRemote --remote <platform> [options]"
-                log_info "  --remote <target>  REQUIRED: 'github', 'gitlab', or 'both'"
-                log_info "  -d <description>   Project description for the cloud repo"
-                log_info "  -n <name>          Specific repository name"
+                echo -e "\n${ROGUE_RED_ITALIC}[Rogue]${RESET} ${BOLD}ADD REMOTE USAGE${RESET}"
+                echo -e "source rogue addRemote --remote <platform> [options]\n"
+                echo -e "  --remote <target>   REQUIRED: 'github', 'gitlab', or 'both'"
+                echo -e "  -v <public|private> Set repository visibility (default is private)"
+                echo -e "  -d <description>    Project description for the cloud repo"
+                echo -e "  -n <name>           Specific repository name"
                 return 0 ;;
             *) log_error "Invalid flag for 'addRemote': $1"; return 1 ;;
         esac
@@ -373,8 +412,8 @@ cmd_addRemote() {
             log_error "'github' remote already exists."
         else
             check_github_auth || return 1
-            log_info "Generating GitHub repo..."
-            gh repo create "$project_name" --private --description "$desc_msg" > /dev/null 2>&1
+            log_info "Generating GitHub repo ($visibility)..."
+            gh repo create "$project_name" --"$visibility" --description "$desc_msg" > /dev/null 2>&1
             local gh_user=$(gh api user --jq .login)
             git remote add github "https://github.com/$gh_user/$project_name.git"
             log_info "Pushing to GitHub..."
@@ -388,8 +427,8 @@ cmd_addRemote() {
             log_error "'gitlab' remote already exists."
         else
             check_gitlab_auth || return 1
-            log_info "Generating GitLab repo..."
-            glab repo create "$project_name" --private --description "$desc_msg" > /dev/null 2>&1
+            log_info "Generating GitLab repo ($visibility)..."
+            glab repo create "$project_name" --"$visibility" --description "$desc_msg" > /dev/null 2>&1
             local gl_user=$(glab api user -q '.username')
             git remote add gitlab "https://gitlab.com/$gl_user/$project_name.git"
             log_info "Pushing to GitLab..."
@@ -469,12 +508,12 @@ cmd_open() {
             --term) open_term="true"; shift ;;
             --explorer) open_explorer="true"; shift ;;
             --help|-h)
-                log_divider "OPEN COMMAND USAGE"
-                log_info "source rogue open [options]"
-                log_info "  -t, --terminal     Run session.sh"
-                log_info "  -g, --gui          Use rofi instead of fzf"
-                log_info "  --term             Open project in Alacritty"
-                log_info "  --explorer         Open project in Nautilus"
+                echo -e "\n${ROGUE_RED_ITALIC}[Rogue]${RESET} ${BOLD}OPEN COMMAND USAGE${RESET}"
+                echo -e "source rogue open [options]\n"
+                echo -e "  -t, --terminal     Run session.sh"
+                echo -e "  -g, --gui          Use rofi instead of fzf"
+                echo -e "  --term             Open project in $TERMINAL_APP"
+                echo -e "  --explorer         Open project in $FILE_MANAGER"
                 return 0 ;;
             *) log_error "Invalid flag for 'open': $1"; return 1 ;;
         esac
@@ -522,11 +561,11 @@ cmd_open() {
     local target_dir=$(echo "$selected_line" | awk -F ' \\|  ' '{print $2}')
 
     if [ "$open_explorer" == "true" ]; then
-        command -v nautilus &> /dev/null && nautilus "$target_dir" > /dev/null 2>&1 &
+        command -v "$FILE_MANAGER" &> /dev/null && "$FILE_MANAGER" "$target_dir" > /dev/null 2>&1 &
     fi
 
     if [ "$open_term" == "true" ]; then
-        command -v alacritty &> /dev/null && alacritty --working-directory "$target_dir" > /dev/null 2>&1 &
+        command -v "$TERMINAL_APP" &> /dev/null && "$TERMINAL_APP" --working-directory "$target_dir" > /dev/null 2>&1 &
     fi
 
     if [ "$run_session" == "true" ]; then

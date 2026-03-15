@@ -1,4 +1,4 @@
-```text
+```
   ____                                  ____   __  __ 
  |  _ \  ___    __ _  _   _  ___       |  _ \ |  \/  |
  | |_) |/ _ \  / _` || | | | / _ \     | |_) || |\/| |
@@ -74,11 +74,13 @@ source ~/.bashrc  # or source ~/.zshrc
 
 RoguePM looks for a configuration file at `~/.roguerc` to override its default variables.
 
-Creating a `.roguerc` file is optional. The hardcoded defaults will work perfectly for most setups, but the system is there for future-proofing. If you use it, you can define:
+Creating a `.roguerc` file is optional. The hardcoded defaults will work perfectly for most setups, but the system is there for custom environments. If you use it, you can define:
 
 * `PROJECTS_DIR` (Default: `$HOME/Desktop/projects`) - The main directory where new projects are generated.
 * `TEMPLATES_DIR` (Default: `$HOME/Desktop/projects/RoguePM/RogueTemplates`) - The folder containing your custom bash setup scripts.
 * `LOCAL_PROJECTS_LIST` (Default: `$HOME/Desktop/projects/RoguePM/rp.list`) - The tracker file for projects generated outside the main directory.
+* `TERMINAL_APP` (Default: `alacritty`) - The terminal emulator used by the `open --term` command.
+* `FILE_MANAGER` (Default: `nautilus`) - The file manager used by the `open --explorer` command.
 * `DEFAULT_REMOTE` (Default: `github`) - The fallback platform.
 
 ---
@@ -88,6 +90,7 @@ Creating a `.roguerc` file is optional. The hardcoded defaults will work perfect
 ### `new`
 
 Creates a new project directory, initializes Git, runs a setup template, makes an initial commit, and provisions cloud remotes.
+*(Note: If cloud CLI authentication fails, the script will gracefully prompt you to continue with local creation only).*
 
 **Usage:** `rogue new <project_name> [options]`
 
@@ -96,6 +99,7 @@ Creates a new project directory, initializes Git, runs a setup template, makes a
 * `--remote <target>`: Provisions a cloud repository and pushes the initial commit. Accepts `github`, `gitlab`, or `both`.
 * `--local`: Creates the project in your current working directory instead of the global `PROJECTS_DIR`. Automatically logs the path to `rp.list`.
 * `-r`, `--replace`: Deletes and overwrites the directory if it already exists.
+* `-v`, `--visibility <public|private>`: Sets the repository visibility on GitHub/GitLab. Defaults to private.
 * `-t`, `--template <name>`: Executes a specific setup script from `TEMPLATES_DIR`. Defaults to `default.sh`.
 * `-m`, `--message <msg>`: Sets the initial commit message.
 * `-d`, `--description <msg>`: Sets the repository description on GitHub/GitLab.
@@ -112,6 +116,7 @@ Retroactively creates a cloud repository for an existing local Git project, link
 **Options:**
 
 * `--remote <target>`: **Required.** Must be `github`, `gitlab`, or `both`. Will fail safely if the remote name already exists locally.
+* `-v`, `--visibility <public|private>`: Sets the repository visibility. Defaults to private.
 * `-n`, `--name <name>`: Specifies the remote repository name. Defaults to the current folder name.
 * `-d`, `--description <msg>`: Sets the cloud repository description.
 
@@ -159,8 +164,8 @@ Provides an interactive menu to jump into any tracked project. It pulls director
 
 * `-g`, `--gui`: Uses `rofi` for the selection menu instead of the default `fzf`.
 * `-t`, `--terminal`: Automatically executes `./session.sh` in the selected project directory if the file exists.
-* `--term`: Opens the selected project in a new Alacritty terminal window.
-* `--explorer`: Opens the selected project in the Nautilus file manager.
+* `--term`: Opens the selected project in a new terminal window (uses `TERMINAL_APP`).
+* `--explorer`: Opens the selected project in your file manager (uses `FILE_MANAGER`).
 
 ---
 
@@ -169,4 +174,5 @@ Provides an interactive menu to jump into any tracked project. It pulls director
 RoguePM supports managing projects stored anywhere on your system, not just in `PROJECTS_DIR`.
 
 When you use the `rogue new --local` command, the absolute path of the new project is appended to the `rp.list` file. Both the `open` menu and the `snapshot` batch processor read this list automatically, ensuring your scattered projects receive the exact same management as your centralized ones.
+
 
