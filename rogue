@@ -514,6 +514,7 @@ cmd_open() {
     local use_gui="false"
     local open_term="false"
     local open_explorer="false"
+    local search_query=""
 
     while [[ $# -gt 0 ]]; do
         case "$1" in
@@ -523,13 +524,14 @@ cmd_open() {
             --explorer) open_explorer="true"; shift ;;
             --help|-h)
                 echo -e "\n${ROGUE_RED_ITALIC}[Rogue]${RESET} ${BOLD}OPEN COMMAND USAGE${RESET}"
-                echo -e "source rogue open [options]\n"
+                echo -e "source rogue open [options] [query]\n"
                 echo -e "  -t, --terminal     Run session.sh"
                 echo -e "  -g, --gui          Use rofi instead of fzf"
                 echo -e "  --term             Open project in $TERMINAL_APP"
                 echo -e "  --explorer         Open project in $FILE_MANAGER"
+                echo -e "\n  [query]            Pre-fill search with this text"
                 return 0 ;;
-            *) log_error "Invalid flag for 'open': $1"; return 1 ;;
+            *) search_query="$1"; shift ;;
         esac
     done
 
@@ -564,10 +566,10 @@ cmd_open() {
     local selected_line
     if [ "$use_gui" == "true" ]; then
         if ! command -v rofi &> /dev/null; then log_error "'rofi' is not installed."; return 1; fi
-        selected_line=$(printf "%s\n" "${fzf_entries[@]}" | rofi -dmenu -i -p "Rogue Open")
+        selected_line=$(printf "%s\n" "${fzf_entries[@]}" | rofi -dmenu -i -p "Rogue Open" ${search_query:+-filter "$search_query"})
     else
         if ! command -v fzf &> /dev/null; then log_error "'fzf' is not installed."; return 1; fi
-        selected_line=$(printf "%s\n" "${fzf_entries[@]}" | fzf --prompt="[Rogue] Open > " --height=40% --border=rounded --color="prompt:#ff2030,info:#40ff20,pointer:#ff2030")
+        selected_line=$(printf "%s\n" "${fzf_entries[@]}" | fzf --prompt="[Rogue] Open > " --height=40% --border=rounded --color="prompt:#ff2030,info:#40ff20,pointer:#ff2030" ${search_query:+--query "$search_query"})
     fi
 
     [ -z "$selected_line" ] && return 0
