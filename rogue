@@ -1,25 +1,22 @@
 #!/bin/bash
 
-# ==========================================
-# GLOBAL CONFIGURATIONS
-# ==========================================
 CONFIG_FILE="$HOME/.roguerc"
 PROJECTS_DIR="$HOME/Desktop/projects"
 TEMPLATES_DIR="$HOME/Desktop/projects/RoguePM/RogueTemplates"
 LOCAL_PROJECTS_LIST="$HOME/Desktop/projects/RoguePM/rp.list"
 DEFAULT_REMOTE="github"
 
-# Default Applications (Override these in your .roguerc if needed)
-TERMINAL_APP="alacritty"
-FILE_MANAGER="nautilus"
-
-if [ -f "$CONFIG_FILE" ]; then
-    source "$CONFIG_FILE"
+# Auto-detect script & repo location
+if [ -n "$BASH_SOURCE" ]; then
+    ROGUE_SCRIPT_PATH="$(realpath "${BASH_SOURCE[0]}" 2>/dev/null)"
+elif [ -n "$ZSH_VERSION" ]; then
+    ROGUE_SCRIPT_PATH="$(realpath "$0" 2>/dev/null)"
 fi
+ROGUE_DIR="${ROGUE_SCRIPT_PATH:+$(dirname "$ROGUE_SCRIPT_PATH")}"
 
-# ==========================================
-# UTILITY FUNCTIONS & AESTHETICS
-# ==========================================
+TERMINAL_APP="alacritty"
+FILE_MANAGER="dolphin"
+
 ROGUE_RED_ITALIC="\e[1;3;31m" # Used for all text/prompts
 ROGUE_RED_SOLID="\e[1;31m"    # Used for ASCII art 
 GREEN="\e[32m"
@@ -69,10 +66,55 @@ print_help() {
     echo -e "  ${BOLD}open${RESET}         Open a project directory using fzf/rofi"
     echo -e "  ${BOLD}setPat${RESET}       Embeds \$GHPAT/\$GLPAT into all HTTPS git remote URLs"
     echo -e "  ${BOLD}addRemote${RESET}    Creates and adds a specified remote (github/gitlab)"
+    echo -e "  ${BOLD}setup${RESET}        Install RoguePM to ~/.local/bin and ~/.config/rogue"
     echo -e "  ${BOLD}help${RESET}         Show this general help message\n"
 }
 
-# --- Auth Checkers ---
+# ==========================================
+# JSON CONFIG LOADER
+# ==========================================
+read_json_config() {
+    local json_file="$HOME/.config/rogue/rogueConf.json"
+    [ ! -f "$json_file" ] && return
+
+    if ! command -v jq &> /dev/null; then
+        log_error "jq is required for JSON config (rogueConf.json). Install it or remove $json_file"
+        return 1
+    fi
+
+    local value
+
+    value=$(jq -r '.projects_dir // empty' "$json_file" 2>/dev/null)
+    [ -n "$value" ] && PROJECTS_DIR="${value/#\~/$HOME}"
+
+    value=$(jq -r '.templates_dir // empty' "$json_file" 2>/dev/null)
+    [ -n "$value" ] && TEMPLATES_DIR="${value/#\~/$HOME}"
+
+    value=$(jq -r '.local_projects_list // empty' "$json_file" 2>/dev/null)
+    [ -n "$value" ] && LOCAL_PROJECTS_LIST="${value/#\~/$HOME}"
+
+    value=$(jq -r '.config_file // empty' "$json_file" 2>/dev/null)
+    [ -n "$value" ] && CONFIG_FILE="${value/#\~/$HOME}"
+
+    value=$(jq -r '.default_remote // empty' "$json_file" 2>/dev/null)
+    [ -n "$value" ] && DEFAULT_REMOTE="$value"
+
+    value=$(jq -r '.terminal_app // empty' "$json_file" 2>/dev/null)
+    [ -n "$value" ] && TERMINAL_APP="$value"
+
+    value=$(jq -r '.file_manager // empty' "$json_file" 2>/dev/null)
+    [ -n "$value" ] && FILE_MANAGER="$value"
+}
+
+# Load configs: JSON first, then .roguerc overrides
+read_json_config
+if [ -f "$CONFIG_FILE" ]; then
+    source "$CONFIG_FILE"
+fi
+
+# ==========================================
+# AUTH CHECKERS
+# ==========================================
 check_github_auth() {
     if ! gh api user --jq .login >/dev/null 2>&1; then
         log_error "Cannot reach GitHub or GitHub CLI (gh) is not authenticated."
@@ -316,6 +358,7 @@ cmd_new() {
     fi
     
     cd "$target_dir" || return 1
+    echo "$target_dir" > /tmp/.rogue_cd
 
     log_info "Initializing Version Control..."
     git init > /dev/null 2>&1
@@ -588,19 +631,261 @@ cmd_open() {
         if [ -f "$target_dir/session.sh" ]; then
             log_info "Executing session.sh..."
             cd "$target_dir" || return 1
+            echo "$target_dir" > /tmp/.rogue_cd
             chmod +x ./session.sh
             ./session.sh
             return 0
         fi
     else
         cd "$target_dir" || return 1
+        echo "$target_dir" > /tmp/.rogue_cd
     fi
+}
+
+# ==========================================
+# COMMAND: SETUP
+# ==========================================
+cmd_setup() {
+    local force="false"
+    local remove="false"
+
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --force) force="true"; shift ;;
+            --remove) remove="true"; shift ;;
+            --help|-h)
+                echo -e "\n${ROGUE_RED_ITALIC}[Rogue]${RESET} ${BOLD}SETUP COMMAND USAGE${RESET}"
+                echo -e "source rogue setup [options]\n"
+                echo -e "  --force        Overwrite existing installation"
+                echo -e "  --remove       Remove RoguePM setup (clean all installed files)"
+                echo -e "  --help, -h     Show this help message\n"
+                echo -e "Installs RoguePM to:"
+                echo -e "  ~/.local/bin/rogue"
+                echo -e "  ~/.config/rogue/templates/"
+                echo -e "  ~/.config/rogue/rp.list"
+                echo -e "  ~/.config/rogue/rogueConf.json\n"
+                return 0 ;;
+            *) log_error "Invalid flag for 'setup': $1"; return 1 ;;
+        esac
+    done
+
+    # --- Remove mode: clean all installed files ---
+    if [ "$remove" = "true" ]; then
+        log_divider "--- Removing RoguePM Setup ---"
+
+        local removed_something="false"
+
+        if [ -f "$HOME/.local/bin/rogue" ]; then
+            rm -f "$HOME/.local/bin/rogue"
+            log_info "Removed ~/.local/bin/rogue"
+            removed_something="true"
+        fi
+
+        if [ -d "$HOME/.config/rogue" ]; then
+            rm -rf "$HOME/.config/rogue"
+            log_info "Removed ~/.config/rogue/"
+            removed_something="true"
+        fi
+
+        if [ -f "$HOME/.roguerc" ]; then
+            rm -f "$HOME/.roguerc"
+            log_info "Removed ~/.roguerc"
+            removed_something="true"
+        fi
+
+        # Remove rogue function from shell rc files
+        for rc in "$HOME/.bashrc" "$HOME/.zshrc" "$HOME/.config/fish/config.fish"; do
+            if [ -f "$rc" ]; then
+                if grep -q "rogue()" "$rc" 2>/dev/null || grep -q "function rogue" "$rc" 2>/dev/null; then
+                    # Remove the rogue function block and blank lines around it
+                    sed -i '/^# RoguePM - Project Manager/,/^}/d' "$rc" 2>/dev/null
+                    sed -i '/^# RoguePM - Project Manager/,/^end/d' "$rc" 2>/dev/null
+                    sed -i '/^rogue() {/,/^}/d' "$rc" 2>/dev/null
+                    sed -i '/^function rogue/,/^end/d' "$rc" 2>/dev/null
+                    # Clean up trailing blank lines left behind
+                    sed -i '/^[[:space:]]*$/d' "$rc" 2>/dev/null
+                    log_info "Removed rogue function from $rc"
+                    removed_something="true"
+                fi
+            fi
+        done
+
+        rm -f /tmp/.rogue_cd
+
+        if [ "$removed_something" = "true" ]; then
+            log_success "RoguePM has been completely removed."
+        else
+            log_info "No RoguePM installation found. Nothing to remove."
+        fi
+        return 0
+    fi
+
+    # --- Guard: check if already installed ---
+    if [ -f "$HOME/.local/bin/rogue" ] && [ "$force" != "true" ]; then
+        log_error "Rogue is already set up at ~/.local/bin/rogue"
+        log_info "Run 'rogue setup --force' to overwrite"
+        return 1
+    fi
+
+    # --- Auto-detect repo location ---
+    if [ -z "$ROGUE_DIR" ] || [ ! -f "$ROGUE_DIR/rogue" ]; then
+        log_error "Cannot detect RoguePM repository location."
+        log_info "Run 'rogue setup' from the RoguePM directory."
+        return 1
+    fi
+
+    # --- Prompt if config already exists ---
+    if [ -f "$HOME/.config/rogue/rogueConf.json" ] && [ "$force" != "true" ]; then
+        local overwrite_choice
+        log_prompt "Rogue config already exists at ~/.config/rogue. Overwrite? (y/n): " overwrite_choice
+        if [[ ! "$overwrite_choice" =~ ^[Yy]$ ]]; then
+            log_info "Setup aborted."
+            return 1
+        fi
+    fi
+
+    log_divider "--- Installing RoguePM ---"
+
+    # --- Create directories ---
+    mkdir -p "$HOME/.local/bin" "$HOME/.config/rogue/templates"
+
+    # --- rsync files from repo ---
+    log_info "Copying rogue script to ~/.local/bin/rogue..."
+    rsync -avh "$ROGUE_DIR/rogue" "$HOME/.local/bin/rogue" > /dev/null 2>&1
+    chmod +x "$HOME/.local/bin/rogue"
+
+    log_info "Copying templates..."
+    if [ -d "$ROGUE_DIR/RogueTemplates" ]; then
+        rsync -avh "$ROGUE_DIR/RogueTemplates/" "$HOME/.config/rogue/templates/" > /dev/null 2>&1
+    else
+        log_info "No templates found. Creating empty templates directory."
+    fi
+
+    if [ -f "$ROGUE_DIR/rp.list" ]; then
+        log_info "Copying rp.list..."
+        rsync -avh "$ROGUE_DIR/rp.list" "$HOME/.config/rogue/rp.list" > /dev/null 2>&1
+    else
+        log_info "No rp.list found. Creating empty one."
+        touch "$HOME/.config/rogue/rp.list"
+    fi
+
+    if [ -f "$ROGUE_DIR/RogueConfig" ]; then
+        log_info "Copying RogueConfig..."
+        rsync -avh "$ROGUE_DIR/RogueConfig" "$HOME/.config/rogue/config" > /dev/null 2>&1
+    else
+        log_info "No RogueConfig found. Creating empty config."
+        touch "$HOME/.config/rogue/config"
+    fi
+
+    # --- Generate rogueConf.json ---
+    log_info "Generating rogueConf.json..."
+    cat > "$HOME/.config/rogue/rogueConf.json" << JSONEOF
+{
+  "projects_dir": "~/Desktop/projects",
+  "templates_dir": "~/.config/rogue/templates",
+  "local_projects_list": "~/.config/rogue/rp.list",
+  "config_file": "~/.config/rogue/config",
+  "default_remote": "github",
+  "terminal_app": "alacritty",
+  "file_manager": "nautilus",
+  "rogue_script": "~/.local/bin/rogue"
+}
+JSONEOF
+
+    # --- Add rogue function to all installed shells ---
+    declare -a shell_configs=()
+
+    if command -v bash &> /dev/null && [ -f "$HOME/.bashrc" ]; then
+        shell_configs+=("bash|$HOME/.bashrc")
+    fi
+    if command -v zsh &> /dev/null && [ -f "$HOME/.zshrc" ]; then
+        shell_configs+=("zsh|$HOME/.zshrc")
+    fi
+    if command -v fish &> /dev/null && [ -f "$HOME/.config/fish/config.fish" ]; then
+        shell_configs+=("fish|$HOME/.config/fish/config.fish")
+    fi
+
+    if [ ${#shell_configs[@]} -eq 0 ]; then
+        log_error "Could not detect any shell config files."
+        echo ""
+        log_info "Add this manually to your shell configuration:"
+        echo -e "  ${BOLD}rogue() { source ~/.local/bin/rogue \"\$@\"; }${RESET}"
+        return 1
+    fi
+
+    local added_shells=()
+    for entry in "${shell_configs[@]}"; do
+        local shell_type="${entry%%|*}"
+        local rc_file="${entry#*|}"
+
+        if grep -q "rogue()" "$rc_file" 2>/dev/null || grep -q "function rogue" "$rc_file" 2>/dev/null; then
+            log_info "Rogue function already exists in $rc_file. Skipping."
+            added_shells+=("$shell_type")
+        else
+            log_info "Adding rogue function to $rc_file..."
+            if [ "$shell_type" = "fish" ]; then
+                cat >> "$rc_file" << 'FISHEOF'
+
+# RoguePM - Project Manager
+# Place this function where you see fit in your shell configuration
+function rogue
+    bash ~/.local/bin/rogue $argv
+    if test -f /tmp/.rogue_cd
+        cd (cat /tmp/.rogue_cd)
+        rm /tmp/.rogue_cd
+    end
+end
+FISHEOF
+            else
+                cat >> "$rc_file" << 'BASHEOF'
+
+# RoguePM - Project Manager
+# Place this function where you see fit in your shell configuration
+rogue() {
+    source ~/.local/bin/rogue "$@"
+}
+BASHEOF
+            fi
+            added_shells+=("$shell_type")
+        fi
+    done
+
+    local shell_list=""
+    for s in "${added_shells[@]}"; do
+        shell_list="${shell_list}${shell_list:+, }$s"
+    done
+
+    # --- Create/update .roguerc for backward compat ---
+    cat > "$HOME/.roguerc" << EOF
+# RoguePM - Installed via 'rogue setup'
+# This file is sourced after rogueConf.json for backward compatibility.
+# Settings here override rogueConf.json values.
+ROGUE_CONFIG="$HOME/.config/rogue/rogueConf.json"
+PROJECTS_DIR="$HOME/Desktop/projects"
+TEMPLATES_DIR="$HOME/.config/rogue/templates"
+LOCAL_PROJECTS_LIST="$HOME/.config/rogue/rp.list"
+DEFAULT_REMOTE="github"
+TERMINAL_APP="alacritty"
+FILE_MANAGER="nautilus"
+EOF
+
+    log_success "RoguePM has been installed successfully!"
+    echo ""
+    log_info "Installation summary:"
+    echo -e "  ${BOLD}Script:${RESET}     ~/.local/bin/rogue"
+    echo -e "  ${BOLD}Config:${RESET}     ~/.config/rogue/rogueConf.json"
+    echo -e "  ${BOLD}Templates:${RESET}  ~/.config/rogue/templates/"
+    echo -e "  ${BOLD}rp.list:${RESET}    ~/.config/rogue/rp.list"
+    echo -e "  ${BOLD}Shells:${RESET}     $shell_list"
+    echo ""
+    log_info "Restart your terminal or source your shell config to use 'rogue'."
 }
 
 # ==========================================
 # MAIN DISPATCHER
 # ==========================================
 main() {
+    rm -f /tmp/.rogue_cd
     print_banner
 
     if [[ $# -eq 0 ]]; then
@@ -620,6 +905,7 @@ main() {
         setPat)
             [[ $# -gt 0 ]] && { log_error "'setPat' takes no arguments."; return 1; }
             cmd_setPat ;;
+        setup) cmd_setup "$@" ;;
         open) cmd_open "$@" ;;
         --help|-h|help) print_help ;;
         *)
