@@ -2,7 +2,7 @@
 
 DIR_NAME="<placeholder>"
 default_folder="default"
-template_dir="/home/godz/Desktop/projects/RoguePM/RogueTemplates"  # Change this to your actual template directory
+template_dir="$(dirname "$(realpath "$0")")"
 
 read -p $'Enter the name of the new clone: ' DIR_NAME
 

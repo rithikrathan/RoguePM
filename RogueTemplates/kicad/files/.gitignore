@@ -1,0 +1,7 @@
+*.bak
+*.kicad_*_bak
+_fabrication/
+fabrication/
+*.net
+*.pos
+*.rpt

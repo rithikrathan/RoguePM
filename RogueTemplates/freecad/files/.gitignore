@@ -1,0 +1,8 @@
+export/
+*.FCStd1
+*.brep
+*.iges
+*.step
+*.stl
+*.obj
+*.FCStd

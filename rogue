@@ -42,7 +42,7 @@ log_prompt() {
 }
 
 log_divider() {
-    echo -e "\n${ROGUE_RED_ITALIC}[Rogue]${RESET} ${BOLD}$1${RESET}"
+    echo -e "\n${BOLD}$1${RESET}"
 }
 
 print_banner() {
@@ -260,15 +260,19 @@ cmd_new() {
                 fi
                 target_remote="$2"
                 shift 2 ;;
-            -t|--template) 
-                [ -z "$2" ] && { log_error "Template name cannot be empty."; return 1; }
-                if [[ -d "$TEMPLATES_DIR/$2" ]]; then
-                    template="$2"
+            -t|--template)
+                if [[ -z "$2" || "$2" == -* ]]; then
+                    template=""
                 else
-                    log_error "Template does not exist. Using default template."
-                    template="default"
+                    if [[ -d "$TEMPLATES_DIR/$2" ]]; then
+                        template="$2"
+                    else
+                        log_error "Template does not exist. Using default template."
+                        template="default"
+                    fi
+                    shift
                 fi
-                shift 2 ;;
+                shift ;;
             -m|--message) 
                 [ -z "$2" ] && { log_error "Commit message cannot be empty."; return 1; }
                 commit_msg="$2"
@@ -289,7 +293,7 @@ cmd_new() {
                 echo -e "  --local             Create project in current working directory"
                 echo -e "  --remote <target>   Target platform: 'github', 'gitlab', or 'both'"
                 echo -e "  -v <public|private> Set repository visibility (default is private)"
-                echo -e "  -t <template>       Use a specific project template"
+                echo -e "  -t [template]       Use a template, or omit name for fzf picker"
                 echo -e "  -m <message>        Initial commit message"
                 echo -e "  -d, --description   Prompt for a cloud repository description"
                 return 0 ;;
@@ -310,6 +314,30 @@ cmd_new() {
         local user_desc
         log_prompt "Enter repository description: " user_desc
         [ -n "$user_desc" ] && desc_msg="$user_desc"
+    fi
+
+    # fzf template picker when -t is passed without a name
+    if [ -z "$template" ]; then
+        if ! command -v fzf &> /dev/null; then
+            log_error "'fzf' is not installed. Using default template."
+            template="default"
+        else
+            local template_list=()
+            for dir in "$TEMPLATES_DIR"/*/; do
+                [ -d "$dir" ] && template_list+=("$(basename "$dir")")
+            done
+            if [ ${#template_list[@]} -gt 0 ]; then
+                local selected
+                selected=$(printf "%s\n" "${template_list[@]}" | fzf --prompt="[Rogue] Select template > " --height=40% --border=rounded)
+                if [ -n "$selected" ]; then
+                    template="$selected"
+                else
+                    template="default"
+                fi
+            else
+                template="default"
+            fi
+        fi
     fi
 
     # Pre-flight check with Fallback Prompt
@@ -360,40 +388,40 @@ cmd_new() {
     cd "$target_dir" || return 1
     echo "$target_dir" > /tmp/.rogue_cd
 
-    log_info "Initializing Version Control..."
-    git init > /dev/null 2>&1
+    echo "Initializing git repository..."
+    git init
 
-    log_info "Applying '$template' template..."
+    echo "Creating template files..."
     local template_script="$TEMPLATES_DIR/$template/$template.sh"
     if [ -x "$template_script" ]; then
-        "$template_script" -n "$project_name" -l "$license" -m "$commit_msg" > /dev/null 2>&1
+        "$template_script" -n "$project_name" -l "$license" -m "$commit_msg"
     else
         log_error "Template script missing/not executable at: $template_script"
     fi
 
-    log_info "Staging and committing files..."
+    echo "Staging and committing initial files..."
     git add .
-    git commit -m "$commit_msg" > /dev/null 2>&1
+    git commit -m "$commit_msg"
 
     if [[ -n "$target_remote" ]]; then
         log_divider "--- Provisioning Cloud Remotes ---"
         
         if [[ "$target_remote" == "github" || "$target_remote" == "both" ]]; then
-            log_info "Generating GitHub repo ($visibility)..."
-            gh repo create "$project_name" --"$visibility" --description "$desc_msg" > /dev/null 2>&1
+            echo "Creating GitHub repository ($visibility)..."
+            gh repo create "$project_name" --"$visibility" --description "$desc_msg"
             local gh_user=$(gh api user --jq .login)
             git remote add github "https://github.com/$gh_user/$project_name.git"
-            log_info "Pushing to GitHub..."
-            git push -u github master > /dev/null 2>&1
+            echo "Pushing to GitHub..."
+            git push -u github master
         fi
 
         if [[ "$target_remote" == "gitlab" || "$target_remote" == "both" ]]; then
-            log_info "Generating GitLab repo ($visibility)..."
-            glab repo create "$project_name" --"$visibility" --description "$desc_msg" > /dev/null 2>&1
+            echo "Creating GitLab repository ($visibility)..."
+            glab repo create "$project_name" --"$visibility" --description "$desc_msg"
             local gl_user=$(glab api user -q '.username')
             git remote add gitlab "https://gitlab.com/$gl_user/$project_name.git"
-            log_info "Pushing to GitLab..."
-            git push -u gitlab master > /dev/null 2>&1
+            echo "Pushing to GitLab..."
+            git push -u gitlab master
         fi
     fi
     
@@ -469,12 +497,12 @@ cmd_addRemote() {
             log_error "'github' remote already exists."
         else
             check_github_auth || return 1
-            log_info "Generating GitHub repo ($visibility)..."
-            gh repo create "$project_name" --"$visibility" --description "$desc_msg" > /dev/null 2>&1
+            echo "Creating GitHub repository ($visibility)..."
+            gh repo create "$project_name" --"$visibility" --description "$desc_msg"
             local gh_user=$(gh api user --jq .login)
             git remote add github "https://github.com/$gh_user/$project_name.git"
-            log_info "Pushing to GitHub..."
-            git push -u github master > /dev/null 2>&1
+            echo "Pushing to GitHub..."
+            git push -u github master
             log_success "GitHub remote attached."
         fi
     fi
@@ -484,12 +512,12 @@ cmd_addRemote() {
             log_error "'gitlab' remote already exists."
         else
             check_gitlab_auth || return 1
-            log_info "Generating GitLab repo ($visibility)..."
-            glab repo create "$project_name" --"$visibility" --description "$desc_msg" > /dev/null 2>&1
+            echo "Creating GitLab repository ($visibility)..."
+            glab repo create "$project_name" --"$visibility" --description "$desc_msg"
             local gl_user=$(glab api user -q '.username')
             git remote add gitlab "https://gitlab.com/$gl_user/$project_name.git"
-            log_info "Pushing to GitLab..."
-            git push -u gitlab master > /dev/null 2>&1
+            echo "Pushing to GitLab..."
+            git push -u gitlab master
             log_success "GitLab remote attached."
         fi
     fi
@@ -787,7 +815,7 @@ cmd_setup() {
   "config_file": "~/.config/rogue/config",
   "default_remote": "github",
   "terminal_app": "alacritty",
-  "file_manager": "nautilus",
+  "file_manager": "dolphin",
   "rogue_script": "~/.local/bin/rogue"
 }
 JSONEOF
@@ -866,7 +894,7 @@ TEMPLATES_DIR="$HOME/.config/rogue/templates"
 LOCAL_PROJECTS_LIST="$HOME/.config/rogue/rp.list"
 DEFAULT_REMOTE="github"
 TERMINAL_APP="alacritty"
-FILE_MANAGER="nautilus"
+FILE_MANAGER="dolphin"
 EOF
 
     log_success "RoguePM has been installed successfully!"

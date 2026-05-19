@@ -1,10 +1,10 @@
 #!/bin/bash
-# set -x # Enable debugging
-FILES_DIR="/home/godz/Desktop/projects/RoguePM/RogueTemplates/default/files/"
+SCRIPT_DIR="$(dirname "$(realpath "${BASH_SOURCE[0]}")")"
+FILES_DIR="$SCRIPT_DIR/files/"
 PROJECT_DIR=$(pwd)/
 PROJECT_NAME="placeholder"
 LICENSE="mit"
-MESSAGE="another placeholder il;aksjfsdjfa;sdlkf jsalkf"
+MESSAGE="placeholder"
 
 #Parse arguments
 while [[ $# -gt 0 ]]; do 
@@ -29,7 +29,7 @@ Descriptions for the repository will be updated in the future commits
 EOL
 echo "[✔] Created README.md"
 
-touch $PROJECT_NAME.circ
+touch "$PROJECT_DIR/$PROJECT_NAME.circ"
 echo "[✔] Created $PROJECT_NAME.circ"
 
 # Debug stuffs

@@ -1,0 +1,8 @@
+*.vcd
+*.lxt
+*.lxt2
+*.ghw
+*.fst
+*.vvp
+sim/
+*.bin

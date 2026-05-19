@@ -1,0 +1,7 @@
+*.class
+/target/
+*.jar
+*.war
+*.ear
+!.mvn/wrapper/maven-wrapper.jar
+/build/
