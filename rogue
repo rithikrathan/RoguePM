@@ -1,12 +1,15 @@
 #!/bin/bash
 
+# ==========================================
+# ORCHESTRATOR: RoguePM
+# ==========================================
+
 CONFIG_FILE="$HOME/.roguerc"
 PROJECTS_DIR="$HOME/Desktop/projects"
 TEMPLATES_DIR="$HOME/Desktop/projects/RoguePM/RogueTemplates"
 LOCAL_PROJECTS_LIST="$HOME/Desktop/projects/RoguePM/rp.list"
 DEFAULT_REMOTE="github"
 
-# Auto-detect script & repo location
 if [ -n "$BASH_SOURCE" ]; then
     ROGUE_SCRIPT_PATH="$(realpath "${BASH_SOURCE[0]}" 2>/dev/null)"
 elif [ -n "$ZSH_VERSION" ]; then
@@ -17,8 +20,8 @@ ROGUE_DIR="${ROGUE_SCRIPT_PATH:+$(dirname "$ROGUE_SCRIPT_PATH")}"
 TERMINAL_APP="alacritty"
 FILE_MANAGER="dolphin"
 
-ROGUE_RED_ITALIC="\e[1;3;31m" # Used for all text/prompts
-ROGUE_RED_SOLID="\e[1;31m"    # Used for ASCII art 
+ROGUE_RED_ITALIC="\e[1;3;31m"
+ROGUE_RED_SOLID="\e[1;31m"
 GREEN="\e[32m"
 YELLOW="\e[33m"
 CYAN="\e[36m"
@@ -46,16 +49,7 @@ log_divider() {
 }
 
 print_banner() {
-    echo -e "${ROGUE_RED_SOLID}"
-    cat << "EOF"
-  ____                                  ____   __  __ 
- |  _ \  ___    __ _  _   _   ___      |  _ \ |  \/  |
- | |_) |/ _ \  / _` || | | | / _ \     | |_) || |\/| |
- |  _ <| (_) || (_| || |_| ||  __/     |  __/ | |  | |
- |_| \_\\___/  \__, | \__,_| \___|_____|_|    |_|  |_|
-               |___/             |_____|
-EOF
-    echo -e "${RESET}"
+    echo -e "${ROGUE_RED_SOLID}>=-=-=-=-=-=-=-=[ ${BOLD}*${ROGUE_RED_SOLID} ]=-=-=-=-=-=-=-=<${RESET}"
 }
 
 print_help() {
@@ -63,6 +57,7 @@ print_help() {
     echo -e "Usage: source rogue <mode> [options]\n"
     echo -e "  ${BOLD}new${RESET}          Create a new project (run 'rogue new --help')"
     echo -e "  ${BOLD}snapshot${RESET}     Push changes from all projects to ALL configured remotes"
+    echo -e "  ${BOLD}template${RESET}     List templates or view template file tree"
     echo -e "  ${BOLD}open${RESET}         Open a project directory using fzf/rofi"
     echo -e "  ${BOLD}setPat${RESET}       Embeds \$GHPAT/\$GLPAT into all HTTPS git remote URLs"
     echo -e "  ${BOLD}addRemote${RESET}    Creates and adds a specified remote (github/gitlab)"
@@ -73,6 +68,7 @@ print_help() {
 # ==========================================
 # JSON CONFIG LOADER
 # ==========================================
+
 read_json_config() {
     local json_file="$HOME/.config/rogue/rogueConf.json"
     [ ! -f "$json_file" ] && return
@@ -106,573 +102,47 @@ read_json_config() {
     [ -n "$value" ] && FILE_MANAGER="$value"
 }
 
-# Load configs: JSON first, then .roguerc overrides
 read_json_config
+
 if [ -f "$CONFIG_FILE" ]; then
     source "$CONFIG_FILE"
 fi
 
 # ==========================================
-# AUTH CHECKERS
+# MODULE LOADER
 # ==========================================
-check_github_auth() {
-    if ! gh api user --jq .login >/dev/null 2>&1; then
-        log_error "Cannot reach GitHub or GitHub CLI (gh) is not authenticated."
-        return 1
-    fi
-    return 0
-}
 
-check_gitlab_auth() {
-    if ! glab auth status >/dev/null 2>&1; then
-        log_error "Cannot reach GitLab or GitLab CLI (glab) is not authenticated."
-        return 1
-    fi
-    return 0
-}
-
-# ==========================================
-# COMMAND: SNAPSHOT
-# ==========================================
-cmd_snapshot() {
-    log_divider "--- Running Project Snapshots ---"
-    
-    declare -a report_repos
-    declare -a report_statuses
-    declare -a target_dirs
-
-    # 1. Gather main projects
-    for dir in "$PROJECTS_DIR"/*; do
-        [ -d "$dir" ] && target_dirs+=("$dir")
-    done
-
-    # 2. Gather local projects from rp.list
-    if [ -f "$LOCAL_PROJECTS_LIST" ]; then
-        while IFS= read -r dir; do
-            if [ -d "$dir" ]; then
-                # Prevent duplicates
-                if [[ ! " ${target_dirs[*]} " =~ " ${dir} " ]]; then
-                    target_dirs+=("$dir")
-                fi
-            fi
-        done < "$LOCAL_PROJECTS_LIST"
-    fi
-
-    if [ ${#target_dirs[@]} -eq 0 ]; then
-        log_info "No projects found to snapshot."
-        return 0
-    fi
-
-    # 3. Process all gathered directories
-    for dir in "${target_dirs[@]}"; do
-        local dirBaseName=$(basename "$dir")
-        log_divider "Target: $dirBaseName"
-        
-        if [ -d "$dir/.git" ]; then
-            cd "$dir" || continue
-            
-            if ! git diff --quiet || ! git diff --cached --quiet; then
-                log_info "Committing changes..."
-                git add -A
-                git commit -m "RoguePM: Project snapshot"
-                
-                local remotes=$(git remote)
-                if [ -z "$remotes" ]; then
-                    log_info "No cloud remotes configured. Changes committed locally."
-                    report_repos+=("$dirBaseName")
-                    report_statuses+=("${GREEN}Committed locally${RESET}")
-                    continue
-                fi
-
-                local push_failed=false
-                for r in $remotes; do
-                    log_info "Pushing to remote: ${BOLD}$r${RESET} (master branch)..."
-                    
-                    if ! git push "$r" master; then
-                        push_failed=true
-                        log_error "Push failed for remote: $r"
-                    fi
-                done
-
-                if [ "$push_failed" = true ]; then
-                    report_repos+=("$dirBaseName")
-                    report_statuses+=("${ROGUE_RED_ITALIC}Push Error/Conflict${RESET}")
-                else
-                    report_repos+=("$dirBaseName")
-                    report_statuses+=("${GREEN}Pushed Successfully${RESET}")
-                fi
-            else
-                log_info "No changes, up to date. Skipping..."
-                report_repos+=("$dirBaseName")
-                report_statuses+=("${YELLOW}Up to date${RESET}")
-            fi
-        else
-            log_info "Not a git repository. Skipping..."
-            report_repos+=("$dirBaseName")
-            report_statuses+=("${YELLOW}Not a git repo${RESET}")
-        fi
-    done
-    
-    # ---------------------------------------------------------
-    # SUMMARY TABLE
-    # ---------------------------------------------------------
-    echo ""
-    log_divider "SNAPSHOT SUMMARY REPORT"
-    printf "  %-25s | %s\n" "Repository" "Status"
-    printf "  %.0s-" {1..55}
-    echo ""
-    for i in "${!report_repos[@]}"; do
-        printf "  %-25s | %b\n" "${report_repos[$i]}" "${report_statuses[$i]}"
-    done
-    echo ""
-}
-
-# ==========================================
-# COMMAND: NEW
-# ==========================================
-cmd_new() {
-    local replace="false"
-    local create_local="false"
-    local prompt_desc="false"
-    local target_remote=""
-    local project_name=""
-    local visibility="private"
-    local commit_msg="Initial commit"
-    local desc_msg="Generated by RoguePM"
-    local license="mit"
-    local template="default"
-
-    while [[ $# -gt 0 ]]; do
-        case "$1" in
-            -r|--replace) replace="true"; shift ;;
-            --local) create_local="true"; shift ;;
-            -v|--visibility) 
-                if [[ "$2" != "public" && "$2" != "private" ]]; then
-                    log_error "Visibility must be 'public' or 'private'."
-                    return 1
-                fi
-                visibility="$2"
-                shift 2 ;;
-            --remote) 
-                if [[ "$2" != "github" && "$2" != "gitlab" && "$2" != "both" ]]; then
-                    log_error "--remote must be 'github', 'gitlab', or 'both'."
-                    return 1
-                fi
-                target_remote="$2"
-                shift 2 ;;
-            -t|--template)
-                if [[ -z "$2" || "$2" == -* ]]; then
-                    template=""
-                else
-                    if [[ -d "$TEMPLATES_DIR/$2" ]]; then
-                        template="$2"
-                    else
-                        log_error "Template does not exist. Using default template."
-                        template="default"
-                    fi
-                    shift
-                fi
-                shift ;;
-            -m|--message) 
-                [ -z "$2" ] && { log_error "Commit message cannot be empty."; return 1; }
-                commit_msg="$2"
-                shift 2 ;;
-            -d|--description) 
-                prompt_desc="true"
-                shift 1 ;;
-            -l|--license) 
-                if [[ -z "$2" || "$2" == -* ]]; then
-                    license="mit"; shift 1
-                else
-                    license="$2"; shift 2
-                fi ;;
-            --help|-h)
-                echo -e "\n${ROGUE_RED_ITALIC}[Rogue]${RESET} ${BOLD}NEW COMMAND USAGE${RESET}"
-                echo -e "source rogue new [project_name] [options]\n"
-                echo -e "  -r                  Replace existing directory if it exists"
-                echo -e "  --local             Create project in current working directory"
-                echo -e "  --remote <target>   Target platform: 'github', 'gitlab', or 'both'"
-                echo -e "  -v <public|private> Set repository visibility (default is private)"
-                echo -e "  -t [template]       Use a template, or omit name for fzf picker"
-                echo -e "  -m <message>        Initial commit message"
-                echo -e "  -d, --description   Prompt for a cloud repository description"
-                return 0 ;;
-            *)
-                if [[ -z "$project_name" && "$1" != -* ]]; then
-                    project_name="$1"
-                else
-                    log_error "Invalid flag for 'new': $1"; return 1
-                fi
-                shift ;;
-        esac
-    done
-
-    [ -z "$project_name" ] && log_prompt "Enter project name: " project_name
-    
-    # Prompt for description if flag was passed
-    if [ "$prompt_desc" == "true" ]; then
-        local user_desc
-        log_prompt "Enter repository description: " user_desc
-        [ -n "$user_desc" ] && desc_msg="$user_desc"
-    fi
-
-    # fzf template picker when -t is passed without a name
-    if [ -z "$template" ]; then
-        if ! command -v fzf &> /dev/null; then
-            log_error "'fzf' is not installed. Using default template."
-            template="default"
-        else
-            local template_list=()
-            for dir in "$TEMPLATES_DIR"/*/; do
-                [ -d "$dir" ] && template_list+=("$(basename "$dir")")
-            done
-            if [ ${#template_list[@]} -gt 0 ]; then
-                local selected
-                selected=$(printf "%s\n" "${template_list[@]}" | fzf --prompt="[Rogue] Select template > " --height=40% --border=rounded)
-                if [ -n "$selected" ]; then
-                    template="$selected"
-                else
-                    template="default"
-                fi
-            else
-                template="default"
-            fi
-        fi
-    fi
-
-    # Pre-flight check with Fallback Prompt
-    local auth_failed="false"
-    if [[ "$target_remote" == "github" || "$target_remote" == "both" ]]; then 
-        check_github_auth || auth_failed="true"
-    fi
-    if [[ "$target_remote" == "gitlab" || "$target_remote" == "both" ]]; then 
-        check_gitlab_auth || auth_failed="true"
-    fi
-
-    if [ "$auth_failed" == "true" ]; then
-        local fallback_choice
-        log_prompt "Continue with local folder setup only? (y/n): " fallback_choice
-        if [[ "$fallback_choice" =~ ^[Yy]$ ]]; then
-            log_info "Proceeding with local setup. (Skipping remote creation)"
-            target_remote=""
-        else
-            log_info "Aborting project creation safely. No files were created."
-            return 1
-        fi
-    fi
-
-    log_divider "--- Provisioning Workspace ---"
-    
-    if [ "$create_local" == "true" ]; then
-        local target_dir="$PWD/$project_name"
-        echo "$target_dir" >> "$LOCAL_PROJECTS_LIST"
-        awk '!seen[$0]++' "$LOCAL_PROJECTS_LIST" > "${LOCAL_PROJECTS_LIST}.tmp" && mv "${LOCAL_PROJECTS_LIST}.tmp" "$LOCAL_PROJECTS_LIST"
+load_modules() {
+    local modules_dir=""
+    if [ -d "$ROGUE_DIR/modules" ]; then
+        modules_dir="$ROGUE_DIR/modules"
+    elif [ -d "$HOME/.config/rogue/modules" ]; then
+        modules_dir="$HOME/.config/rogue/modules"
     else
-        local target_dir="$PROJECTS_DIR/$project_name"
+        log_error "Modules directory not found. Run 'rogue setup' to install."
+        return 1
     fi
 
-    if [ -d "$target_dir" ]; then
-        if [ "$replace" == "true" ]; then
-            log_info "Replacing existing directory..."
-            rm -rf "$target_dir"
-            mkdir -p "$target_dir"
-        else
-            log_error "Directory already exists! Use -r to replace it."
-            return 1
+    local loaded=0
+    for m in "$modules_dir"/*.sh; do
+        if [ -f "$m" ]; then
+            source "$m"
+            ((loaded++))
         fi
-    else
-        log_info "Creating project folder..."
-        mkdir -p "$target_dir"
-    fi
-    
-    cd "$target_dir" || return 1
-    echo "$target_dir" > /tmp/.rogue_cd
-
-    echo "Initializing git repository..."
-    git init
-
-    echo "Creating template files..."
-    local template_script="$TEMPLATES_DIR/$template/$template.sh"
-    if [ -x "$template_script" ]; then
-        "$template_script" -n "$project_name" -l "$license" -m "$commit_msg"
-    else
-        log_error "Template script missing/not executable at: $template_script"
-    fi
-
-    echo "Staging and committing initial files..."
-    git add .
-    git commit -m "$commit_msg"
-
-    if [[ -n "$target_remote" ]]; then
-        log_divider "--- Provisioning Cloud Remotes ---"
-        
-        if [[ "$target_remote" == "github" || "$target_remote" == "both" ]]; then
-            echo "Creating GitHub repository ($visibility)..."
-            gh repo create "$project_name" --"$visibility" --description "$desc_msg"
-            local gh_user=$(gh api user --jq .login)
-            git remote add github "https://github.com/$gh_user/$project_name.git"
-            echo "Pushing to GitHub..."
-            git push -u github master
-        fi
-
-        if [[ "$target_remote" == "gitlab" || "$target_remote" == "both" ]]; then
-            echo "Creating GitLab repository ($visibility)..."
-            glab repo create "$project_name" --"$visibility" --description "$desc_msg"
-            local gl_user=$(glab api user -q '.username')
-            git remote add gitlab "https://gitlab.com/$gl_user/$project_name.git"
-            echo "Pushing to GitLab..."
-            git push -u gitlab master
-        fi
-    fi
-    
-    log_success "Project online: $project_name"
-}
-
-# ==========================================
-# COMMAND: ADD REMOTE
-# ==========================================
-cmd_addRemote() {
-    local target_remote=""
-    local visibility="private"
-    local prompt_desc="false"
-    local desc_msg="Repository created via RoguePM"
-    local project_name=$(basename "$PWD")
-
-    while [[ $# -gt 0 ]]; do
-        case "$1" in
-            --remote) 
-                if [[ "$2" != "github" && "$2" != "gitlab" && "$2" != "both" ]]; then
-                    log_error "--remote must be 'github', 'gitlab', or 'both'."
-                    return 1
-                fi
-                target_remote="$2"
-                shift 2 ;;
-            -v|--visibility) 
-                if [[ "$2" != "public" && "$2" != "private" ]]; then
-                    log_error "Visibility must be 'public' or 'private'."
-                    return 1
-                fi
-                visibility="$2"
-                shift 2 ;;
-            -d|--description) 
-                prompt_desc="true"
-                shift 1 ;;
-            -n|--name) 
-                [ -z "$2" ] && { log_error "Project name cannot be empty."; return 1; }
-                project_name="$2"
-                shift 2 ;;
-            --help|-h)
-                echo -e "\n${ROGUE_RED_ITALIC}[Rogue]${RESET} ${BOLD}ADD REMOTE USAGE${RESET}"
-                echo -e "source rogue addRemote --remote <platform> [options]\n"
-                echo -e "  --remote <target>   REQUIRED: 'github', 'gitlab', or 'both'"
-                echo -e "  -v <public|private> Set repository visibility (default is private)"
-                echo -e "  -d, --description   Prompt for a cloud repository description"
-                echo -e "  -n <name>           Specific repository name"
-                return 0 ;;
-            *) log_error "Invalid flag for 'addRemote': $1"; return 1 ;;
-        esac
     done
 
-    if [ -z "$target_remote" ]; then
-        log_error "The '--remote <github|gitlab|both>' flag is REQUIRED."
+    if [ "$loaded" -eq 0 ]; then
+        log_error "No modules found in $modules_dir"
         return 1
-    fi
-
-    if ! git rev-parse --is-inside-work-tree > /dev/null 2>&1; then
-        log_error "Not inside a git repository."
-        return 1
-    fi
-
-    # Prompt for description if flag was passed
-    if [ "$prompt_desc" == "true" ]; then
-        local user_desc
-        log_prompt "Enter repository description: " user_desc
-        [ -n "$user_desc" ] && desc_msg="$user_desc"
-    fi
-
-    log_divider "--- Attaching Cloud Remotes ---"
-
-    if [[ "$target_remote" == "github" || "$target_remote" == "both" ]]; then
-        if git remote get-url github > /dev/null 2>&1; then
-            log_error "'github' remote already exists."
-        else
-            check_github_auth || return 1
-            echo "Creating GitHub repository ($visibility)..."
-            gh repo create "$project_name" --"$visibility" --description "$desc_msg"
-            local gh_user=$(gh api user --jq .login)
-            git remote add github "https://github.com/$gh_user/$project_name.git"
-            echo "Pushing to GitHub..."
-            git push -u github master
-            log_success "GitHub remote attached."
-        fi
-    fi
-
-    if [[ "$target_remote" == "gitlab" || "$target_remote" == "both" ]]; then
-        if git remote get-url gitlab > /dev/null 2>&1; then
-            log_error "'gitlab' remote already exists."
-        else
-            check_gitlab_auth || return 1
-            echo "Creating GitLab repository ($visibility)..."
-            glab repo create "$project_name" --"$visibility" --description "$desc_msg"
-            local gl_user=$(glab api user -q '.username')
-            git remote add gitlab "https://gitlab.com/$gl_user/$project_name.git"
-            echo "Pushing to GitLab..."
-            git push -u gitlab master
-            log_success "GitLab remote attached."
-        fi
     fi
 }
 
-# ==========================================
-# COMMAND: SET PAT
-# ==========================================
-cmd_setPat() {
-    log_divider "--- Configuring PATs for all Remotes ---"
-    
-    if ! git rev-parse --is-inside-work-tree > /dev/null 2>&1; then
-        log_error "Not inside a git repository."
-        return 1
-    fi
-
-    local remotes=$(git remote)
-    if [ -z "$remotes" ]; then
-        log_error "No remotes found to update."
-        return 1
-    fi
-
-    for r in $remotes; do
-        local remote_url=$(git remote get-url "$r")
-        
-        if [[ "$remote_url" == git@* ]]; then
-            log_info "Remote '$r' uses SSH. Skipping."
-            continue
-        fi
-
-        if [[ "$r" == "origin" ]]; then
-            log_info "[Legacy] Remote named 'origin' detected."
-        fi
-
-        if [[ "$remote_url" == *github.com* ]]; then
-            if [ -z "$GHPAT" ]; then
-                log_error "\$GHPAT missing. Skipping GitHub."
-                continue
-            fi
-            local repo_path_clean=$(echo "$remote_url" | sed -E 's|^https://.*@github\.com/||' | sed -E 's|^https://github\.com/||')
-            local new_url="https://${GHPAT}@github.com/${repo_path_clean}"
-            git remote set-url "$r" "$new_url"
-            log_success "Secured $r (GitHub)"
-
-        elif [[ "$remote_url" == *gitlab.com* ]]; then
-            if [ -z "$GLPAT" ]; then
-                log_error "\$GLPAT missing. Skipping GitLab."
-                continue
-            fi
-            local repo_path_clean=$(echo "$remote_url" | sed -E 's|^https://.*@gitlab\.com/||' | sed -E 's|^https://gitlab\.com/||')
-            local new_url="https://oauth2:${GLPAT}@gitlab.com/${repo_path_clean}"
-            git remote set-url "$r" "$new_url"
-            log_success "Secured $r (GitLab)"
-        else
-            log_error "Remote '$r' is not recognized."
-        fi
-    done
-}
-
-# ==========================================
-# COMMAND: OPEN
-# ==========================================
-cmd_open() {
-    local run_session="false"
-    local use_gui="false"
-    local open_term="false"
-    local open_explorer="false"
-    local search_query=""
-
-    while [[ $# -gt 0 ]]; do
-        case "$1" in
-            -t|--terminal) run_session="true"; shift ;;
-            -g|--gui) use_gui="true"; shift ;;
-            --term) open_term="true"; shift ;;
-            --explorer) open_explorer="true"; shift ;;
-            --help|-h)
-                echo -e "\n${ROGUE_RED_ITALIC}[Rogue]${RESET} ${BOLD}OPEN COMMAND USAGE${RESET}"
-                echo -e "source rogue open [options] [query]\n"
-                echo -e "  -t, --terminal     Run session.sh"
-                echo -e "  -g, --gui          Use rofi instead of fzf"
-                echo -e "  --term             Open project in $TERMINAL_APP"
-                echo -e "  --explorer         Open project in $FILE_MANAGER"
-                echo -e "\n  [query]            Pre-fill search with this text"
-                return 0 ;;
-            *) search_query="$1"; shift ;;
-        esac
-    done
-
-    declare -a fzf_entries
-    declare -a proj_paths
-
-    if [ -d "$PROJECTS_DIR" ]; then
-        for dir in "$PROJECTS_DIR"/*; do
-            if [ -d "$dir" ]; then
-                proj_paths+=("$dir")
-                fzf_entries+=("$(basename "$dir")  |  $dir")
-            fi
-        done
-    fi
-
-    if [ -f "$LOCAL_PROJECTS_LIST" ]; then
-        while IFS= read -r dir; do
-            if [ -d "$dir" ]; then
-                if [[ ! " ${proj_paths[*]} " =~ " ${dir} " ]]; then
-                    proj_paths+=("$dir")
-                    fzf_entries+=("$(basename "$dir") [Local]  |  $dir")
-                fi
-            fi
-        done < "$LOCAL_PROJECTS_LIST"
-    fi
-
-    if [ ${#fzf_entries[@]} -eq 0 ]; then
-        log_error "No projects found."
-        return 1
-    fi
-
-    local selected_line
-    if [ "$use_gui" == "true" ]; then
-        if ! command -v rofi &> /dev/null; then log_error "'rofi' is not installed."; return 1; fi
-        selected_line=$(printf "%s\n" "${fzf_entries[@]}" | rofi -dmenu -i -p "Rogue Open" ${search_query:+-filter "$search_query"})
-    else
-        if ! command -v fzf &> /dev/null; then log_error "'fzf' is not installed."; return 1; fi
-        selected_line=$(printf "%s\n" "${fzf_entries[@]}" | fzf --prompt="[Rogue] Open > " --height=40% --border=rounded --color="prompt:#ff2030,info:#40ff20,pointer:#ff2030" ${search_query:+--query "$search_query"})
-    fi
-
-    [ -z "$selected_line" ] && return 0
-
-    local target_dir=$(echo "$selected_line" | awk -F ' \\|  ' '{print $2}')
-
-    if [ "$open_explorer" == "true" ]; then
-        command -v "$FILE_MANAGER" &> /dev/null && "$FILE_MANAGER" "$target_dir" > /dev/null 2>&1 &
-    fi
-
-    if [ "$open_term" == "true" ]; then
-        command -v "$TERMINAL_APP" &> /dev/null && "$TERMINAL_APP" --working-directory "$target_dir" > /dev/null 2>&1 &
-    fi
-
-    if [ "$run_session" == "true" ]; then
-        if [ -f "$target_dir/session.sh" ]; then
-            log_info "Executing session.sh..."
-            cd "$target_dir" || return 1
-            echo "$target_dir" > /tmp/.rogue_cd
-            chmod +x ./session.sh
-            ./session.sh
-            return 0
-        fi
-    else
-        cd "$target_dir" || return 1
-        echo "$target_dir" > /tmp/.rogue_cd
-    fi
-}
+load_modules
 
 # ==========================================
 # COMMAND: SETUP
 # ==========================================
+
 cmd_setup() {
     local force="false"
     local remove="false"
@@ -692,6 +162,7 @@ cmd_setup() {
                 echo -e "  --help, -h     Show this help message\n"
                 echo -e "Installs RoguePM to:"
                 echo -e "  ~/.local/bin/rogue"
+                echo -e "  ~/.config/rogue/modules/"
                 echo -e "  ~/.config/rogue/templates/"
                 echo -e "  ~/.config/rogue/rp.list"
                 echo -e "  ~/.config/rogue/rogueConf.json\n"
@@ -700,7 +171,6 @@ cmd_setup() {
         esac
     done
 
-    # --- Remove mode: clean all installed files ---
     if [ "$remove" = "true" ]; then
         log_divider "--- Removing RoguePM Setup ---"
 
@@ -724,16 +194,13 @@ cmd_setup() {
             removed_something="true"
         fi
 
-        # Remove rogue function from shell rc files
         for rc in "$HOME/.bashrc" "$HOME/.zshrc" "$HOME/.config/fish/config.fish"; do
             if [ -f "$rc" ]; then
                 if grep -q "rogue()" "$rc" 2>/dev/null || grep -q "function rogue" "$rc" 2>/dev/null; then
-                    # Remove the rogue function block and blank lines around it
                     sed -i '/^# RoguePM - Project Manager/,/^}/d' "$rc" 2>/dev/null
                     sed -i '/^# RoguePM - Project Manager/,/^end/d' "$rc" 2>/dev/null
                     sed -i '/^rogue() {/,/^}/d' "$rc" 2>/dev/null
                     sed -i '/^function rogue/,/^end/d' "$rc" 2>/dev/null
-                    # Clean up trailing blank lines left behind
                     sed -i '/^[[:space:]]*$/d' "$rc" 2>/dev/null
                     log_info "Removed rogue function from $rc"
                     removed_something="true"
@@ -751,21 +218,18 @@ cmd_setup() {
         return 0
     fi
 
-    # --- Guard: check if already installed ---
     if [ -f "$HOME/.local/bin/rogue" ] && [ "$force" != "true" ]; then
         log_error "Rogue is already set up at ~/.local/bin/rogue"
         log_info "Run 'rogue setup --force' to overwrite"
         return 1
     fi
 
-    # --- Auto-detect repo location ---
     if [ -z "$ROGUE_DIR" ] || [ ! -f "$ROGUE_DIR/rogue" ]; then
         log_error "Cannot detect RoguePM repository location."
         log_info "Run 'rogue setup' from the RoguePM directory."
         return 1
     fi
 
-    # --- Prompt if config already exists ---
     if [ -f "$HOME/.config/rogue/rogueConf.json" ] && [ "$force" != "true" ]; then
         local overwrite_choice
         log_prompt "Rogue config already exists at ~/.config/rogue. Overwrite? (y/n): " overwrite_choice
@@ -777,10 +241,8 @@ cmd_setup() {
 
     log_divider "--- Installing RoguePM ---"
 
-    # --- Create directories ---
-    mkdir -p "$HOME/.local/bin" "$HOME/.config/rogue/templates"
+    mkdir -p "$HOME/.local/bin" "$HOME/.config/rogue/modules" "$HOME/.config/rogue/templates"
 
-    # --- Install rogue script (copy or symlink) ---
     if [ "$sym" = "true" ]; then
         log_info "Symlinking rogue script to ~/.local/bin/rogue..."
         ln -sf "$ROGUE_DIR/rogue" "$HOME/.local/bin/rogue"
@@ -790,33 +252,36 @@ cmd_setup() {
         chmod +x "$HOME/.local/bin/rogue"
     fi
 
+    log_info "Installing modules..."
+    rsync -avh "$ROGUE_DIR/modules/" "$HOME/.config/rogue/modules/" > /dev/null 2>&1
+
     if [ -d "$ROGUE_DIR/RogueTemplates" ]; then
         log_info "Copying templates..."
         rsync -avh "$ROGUE_DIR/RogueTemplates/" "$HOME/.config/rogue/templates/" > /dev/null 2>&1
     else
-        log_info "Templates source not found at $ROGUE_DIR/RogueTemplates — skipping."
+        log_info "Templates source not found — skipping."
     fi
 
     if [ -f "$ROGUE_DIR/rp.list" ]; then
         log_info "Copying rp.list..."
         rsync -avh "$ROGUE_DIR/rp.list" "$HOME/.config/rogue/rp.list" > /dev/null 2>&1
     else
-        log_info "rp.list source not found at $ROGUE_DIR/rp.list — skipping. Existing config kept."
+        log_info "rp.list source not found — skipping. Existing config kept."
     fi
 
     if [ -f "$ROGUE_DIR/RogueConfig" ]; then
         log_info "Copying RogueConfig..."
         rsync -avh "$ROGUE_DIR/RogueConfig" "$HOME/.config/rogue/config" > /dev/null 2>&1
     else
-        log_info "RogueConfig source not found at $ROGUE_DIR/RogueConfig — skipping. Existing config kept."
+        log_info "RogueConfig source not found — skipping. Existing config kept."
     fi
 
-    # --- Generate rogueConf.json ---
     log_info "Generating rogueConf.json..."
     cat > "$HOME/.config/rogue/rogueConf.json" << JSONEOF
 {
   "projects_dir": "~/Desktop/projects",
   "templates_dir": "~/.config/rogue/templates",
+  "modules_dir": "~/.config/rogue/modules",
   "local_projects_list": "~/.config/rogue/rp.list",
   "config_file": "~/.config/rogue/config",
   "default_remote": "github",
@@ -826,7 +291,6 @@ cmd_setup() {
 }
 JSONEOF
 
-    # --- Add rogue function to all installed shells ---
     declare -a shell_configs=()
 
     if command -v bash &> /dev/null && [ -f "$HOME/.bashrc" ]; then
@@ -861,7 +325,6 @@ JSONEOF
                 cat >> "$rc_file" << 'FISHEOF'
 
 # RoguePM - Project Manager
-# Place this function where you see fit in your shell configuration
 function rogue
     bash ~/.local/bin/rogue $argv
     if test -f /tmp/.rogue_cd
@@ -874,7 +337,6 @@ FISHEOF
                 cat >> "$rc_file" << 'BASHEOF'
 
 # RoguePM - Project Manager
-# Place this function where you see fit in your shell configuration
 rogue() {
     source ~/.local/bin/rogue "$@"
 }
@@ -889,10 +351,8 @@ BASHEOF
         shell_list="${shell_list}${shell_list:+, }$s"
     done
 
-    # --- Create/update .roguerc for backward compat ---
     cat > "$HOME/.roguerc" << EOF
 # RoguePM - Installed via 'rogue setup'
-# This file is sourced after rogueConf.json for backward compatibility.
 # Settings here override rogueConf.json values.
 ROGUE_CONFIG="$HOME/.config/rogue/rogueConf.json"
 PROJECTS_DIR="$HOME/Desktop/projects"
@@ -910,10 +370,39 @@ EOF
     echo ""
     log_info "Installation summary:"
     echo -e "  ${BOLD}Script:${RESET}     ~/.local/bin/rogue ($install_type)"
+    echo -e "  ${BOLD}Modules:${RESET}    ~/.config/rogue/modules/"
     echo -e "  ${BOLD}Config:${RESET}     ~/.config/rogue/rogueConf.json"
     echo -e "  ${BOLD}Templates:${RESET}  ~/.config/rogue/templates/"
     echo -e "  ${BOLD}rp.list:${RESET}    ~/.config/rogue/rp.list"
     echo -e "  ${BOLD}Shells:${RESET}     $shell_list"
+    echo ""
+
+    log_divider "--- Dependency Check ---"
+
+    local deps_ok=true
+    local dep_warnings=""
+
+    while IFS='|' read -r cmd label msg; do
+        if ! command -v "$cmd" &> /dev/null; then
+            deps_ok=false
+            dep_warnings+="  ${YELLOW}✗${RESET} $label — not found. $msg\n"
+        fi
+    done << DEPS
+git|git|Core VCS needed for all project operations.
+gh|GitHub CLI (gh)|GitHub remotes will not work in new, addRemote.
+glab|GitLab CLI (glab)|GitLab remotes will not work in new, addRemote.
+fzf|fzf|Template picker, open menu, and session subdir selection won't work.
+jq|jq|JSON config (rogueConf.json) will not be read.
+tree|tree|Directory tree display after template creation will be skipped.
+rsync|rsync|File copying during setup may fall back to cp.
+DEPS
+
+    if [ "$deps_ok" = false ]; then
+        echo -e "$dep_warnings"
+        log_info "Install missing tools with your package manager (e.g. apt install <package>)."
+    else
+        log_success "All dependencies found."
+    fi
     echo ""
     log_info "Restart your terminal or source your shell config to use 'rogue'."
 }
@@ -921,6 +410,7 @@ EOF
 # ==========================================
 # MAIN DISPATCHER
 # ==========================================
+
 main() {
     rm -f /tmp/.rogue_cd
     print_banner
@@ -935,6 +425,7 @@ main() {
 
     case "$command" in
         new) cmd_new "$@" ;;
+        template) cmd_template "$@" ;;
         snapshot)
             [[ $# -gt 0 ]] && { log_error "'snapshot' takes no arguments."; return 1; }
             cmd_snapshot ;;
