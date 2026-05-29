@@ -135,7 +135,8 @@ cmd_new() {
         fi
     fi
 
-    log_divider "--- Provisioning Workspace ---"
+    echo -e "\n────────────────────────────────────────────"
+    echo -e "${ROGUE_RED_ITALIC}[Rogue]${RESET} ${BOLD_ITALIC_UNDERLINE}Provisioning Workspace${RESET}\n"
 
     if [ "$create_local" == "true" ]; then
         local target_dir="$PWD/$project_name"
@@ -147,7 +148,7 @@ cmd_new() {
 
     if [ -d "$target_dir" ]; then
         if [ "$replace" == "true" ]; then
-            log_info "Replacing existing directory..."
+            log_step "Replacing existing directory..."
             rm -rf "$target_dir"
             mkdir -p "$target_dir"
         else
@@ -155,17 +156,17 @@ cmd_new() {
             return 1
         fi
     else
-        log_info "Creating project folder..."
+        log_step "Creating project folder..."
         mkdir -p "$target_dir"
     fi
 
     cd "$target_dir" || return 1
     echo "$target_dir" > /tmp/.rogue_cd
 
-    log_info "Initializing git repository..."
+    log_step "Initializing git repository..."
     git init
 
-    log_info "Creating template files..."
+    log_step "Creating template files..."
     local template_script="$TEMPLATES_DIR/$template/$template.sh"
     if [ -x "$template_script" ]; then
         "$template_script" -n "$project_name" -l "$license" -m "$commit_msg"
@@ -173,33 +174,39 @@ cmd_new() {
         log_error "Template script missing/not executable at: $template_script"
     fi
 
-    log_info "Staging and committing initial files..."
+    log_step "Staging and committing initial files..."
     git add .
     git commit -m "$commit_msg"
 
+    if command -v tree &> /dev/null; then
+        echo -e "\n${ROSE_PINE_GOLD}$(tree -L 1 --dirsfirst --color=never 2>/dev/null)${RESET}"
+    fi
+
     if [[ -n "$target_remote" ]]; then
-        log_divider "--- Provisioning Cloud Remotes ---"
+        echo -e "\n────────────────────────────────────────────"
+        echo -e "${ROGUE_RED_ITALIC}[Rogue]${RESET} ${BOLD_ITALIC_UNDERLINE}Provisioning Cloud Remotes${RESET}\n"
 
         if [[ "$target_remote" == "github" || "$target_remote" == "both" ]]; then
-            log_info "Creating GitHub repository ($visibility)..."
+            log_step "Creating GitHub repository ($visibility)..."
             gh repo create "$project_name" --"$visibility" --description "$desc_msg"
             local gh_user=$(gh api user --jq .login)
             git remote add github "https://github.com/$gh_user/$project_name.git"
-            log_info "Pushing to GitHub..."
+            log_step "Pushing to GitHub..."
             git push -u github master
         fi
 
         if [[ "$target_remote" == "gitlab" || "$target_remote" == "both" ]]; then
-            log_info "Creating GitLab repository ($visibility)..."
+            log_step "Creating GitLab repository ($visibility)..."
             glab repo create "$project_name" --"$visibility" --description "$desc_msg"
             local gl_user=$(glab api user -q '.username')
             git remote add gitlab "https://gitlab.com/$gl_user/$project_name.git"
-            log_info "Pushing to GitLab..."
+            log_step "Pushing to GitLab..."
             git push -u gitlab master
         fi
     fi
 
-    log_success "Project online: $project_name"
+    echo -e "\n────────────────────────────────────────────"
+    log_success "Project initialized: $project_name"
 
     local create_sesh
     log_prompt "Create session.sh for this project? (y/N): " create_sesh

@@ -3,7 +3,8 @@
 # ==========================================
 
 cmd_snapshot() {
-    log_divider "--- Running Project Snapshots ---"
+    echo -e "\n────────────────────────────────────────────"
+    echo -e "${ROGUE_RED_ITALIC}[Rogue]${RESET} ${BOLD_ITALIC_UNDERLINE}Running Project Snapshots${RESET}\n"
 
     declare -a report_repos
     declare -a report_statuses
@@ -30,19 +31,19 @@ cmd_snapshot() {
 
     for dir in "${target_dirs[@]}"; do
         local dirBaseName=$(basename "$dir")
-        log_divider "Target: $dirBaseName"
+        log_step "Target: $dirBaseName"
 
         if [ -d "$dir/.git" ]; then
             cd "$dir" || continue
 
             if ! git diff --quiet || ! git diff --cached --quiet; then
-                log_info "Committing changes..."
+                log_step "Committing changes..."
                 git add -A
                 git commit -m "RoguePM: Project snapshot"
 
                 local remotes=$(git remote)
                 if [ -z "$remotes" ]; then
-                    log_info "No cloud remotes configured. Changes committed locally."
+                    log_step "No cloud remotes configured. Changes committed locally."
                     report_repos+=("$dirBaseName")
                     report_statuses+=("${GREEN}Committed locally${RESET}")
                     continue
@@ -50,7 +51,7 @@ cmd_snapshot() {
 
                 local push_failed=false
                 for r in $remotes; do
-                    log_info "Pushing to remote: ${BOLD}$r${RESET} (master branch)..."
+                    log_step "Pushing to $r..."
                     if ! git push "$r" master; then
                         push_failed=true
                         log_error "Push failed for remote: $r"
@@ -65,19 +66,20 @@ cmd_snapshot() {
                     report_statuses+=("${GREEN}Pushed Successfully${RESET}")
                 fi
             else
-                log_info "No changes, up to date. Skipping..."
+                log_step "No changes, up to date. Skipping..."
                 report_repos+=("$dirBaseName")
                 report_statuses+=("${YELLOW}Up to date${RESET}")
             fi
         else
-            log_info "Not a git repository. Skipping..."
+            log_step "Not a git repository. Skipping..."
             report_repos+=("$dirBaseName")
             report_statuses+=("${YELLOW}Not a git repo${RESET}")
         fi
     done
 
     echo ""
-    log_divider "SNAPSHOT SUMMARY REPORT"
+    echo -e "────────────────────────────────────────────"
+    echo -e "${ROGUE_RED_ITALIC}[Rogue]${RESET} ${BOLD_ITALIC_UNDERLINE}Snapshot Summary Report${RESET}\n"
     printf "  %-25s | %s\n" "Repository" "Status"
     printf "  %.0s-" {1..55}
     echo ""

@@ -79,7 +79,7 @@ cmd_open() {
 
     if [ "$run_session" == "true" ]; then
         if [ -f "$target_dir/session.sh" ]; then
-            log_info "Executing session.sh..."
+            log_step "Executing session.sh..."
             cd "$target_dir" || return 1
             echo "$target_dir" > /tmp/.rogue_cd
             chmod +x ./session.sh

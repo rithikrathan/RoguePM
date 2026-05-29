@@ -3,7 +3,8 @@
 # ==========================================
 
 cmd_setPat() {
-    log_divider "--- Configuring PATs for all Remotes ---"
+    echo -e "\n────────────────────────────────────────────"
+    echo -e "${ROGUE_RED_ITALIC}[Rogue]${RESET} ${BOLD_ITALIC_UNDERLINE}Configuring PATs for All Remotes${RESET}\n"
 
     if ! git rev-parse --is-inside-work-tree > /dev/null 2>&1; then
         log_error "Not inside a git repository."
@@ -20,12 +21,12 @@ cmd_setPat() {
         local remote_url=$(git remote get-url "$r")
 
         if [[ "$remote_url" == git@* ]]; then
-            log_info "Remote '$r' uses SSH. Skipping."
+            log_step "Remote '$r' uses SSH. Skipping."
             continue
         fi
 
         if [[ "$r" == "origin" ]]; then
-            log_info "[Legacy] Remote named 'origin' detected."
+            log_step "[Legacy] Remote named 'origin' detected."
         fi
 
         if [[ "$remote_url" == *github.com* ]]; then

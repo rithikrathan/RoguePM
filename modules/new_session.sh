@@ -11,7 +11,8 @@ cmd_new_session() {
         prefill_dir="$2"
     fi
 
-    log_divider "--- Session Configuration ---"
+    echo -e "\n────────────────────────────────────────────"
+    echo -e "${ROGUE_RED_ITALIC}[Rogue]${RESET} ${BOLD_ITALIC_UNDERLINE}Session Configuration${RESET}\n"
 
     local session_name="$prefill_name"
     if [ -z "$session_name" ]; then
@@ -29,7 +30,7 @@ cmd_new_session() {
         log_prompt "session.sh exists. Overwrite / Append / Skip (O/a/s): " overwrite_choice
         overwrite_choice=${overwrite_choice:-O}
         if [[ "$overwrite_choice" =~ ^[Ss] ]]; then
-            log_info "Skipped."
+            log_step "Skipped."
             return 0
         fi
     fi
@@ -49,7 +50,8 @@ cmd_new_session() {
         [ -n "$ignore_input" ] && ignore_dirs="$ignore_input"
     fi
 
-    log_divider "--- Window Configuration ---"
+    echo -e "\n────────────────────────────────────────────"
+    echo -e "${ROGUE_RED_ITALIC}[Rogue]${RESET} ${BOLD_ITALIC_UNDERLINE}Window Configuration${RESET}\n"
 
     local add_editor="y"
     log_prompt "Add editor window (nvim)? (Y/n): " add_editor
@@ -137,7 +139,8 @@ cmd_new_session() {
         done
     fi
 
-    log_divider "--- Ordering ---"
+    echo -e "\n────────────────────────────────────────────"
+    echo -e "${ROGUE_RED_ITALIC}[Rogue]${RESET} ${BOLD_ITALIC_UNDERLINE}Ordering${RESET}\n"
 
     local -a order_list=()
     [[ "$add_editor" =~ ^[Yy]$ ]] && order_list+=("editor")
@@ -148,7 +151,7 @@ cmd_new_session() {
     for c in "${custom_names[@]}"; do order_list+=("custom:$c"); done
 
     if [ ${#order_list[@]} -gt 1 ]; then
-        log_info "Current order: ${order_list[*]}"
+        log_step "Current order: ${order_list[*]}"
         local accept_order
         log_prompt "Accept this order? (Y/n): " accept_order
         accept_order=${accept_order:-y}
@@ -175,7 +178,8 @@ cmd_new_session() {
         fi
     fi
 
-    log_divider "--- Generating Session Script ---"
+    echo -e "\n────────────────────────────────────────────"
+    echo -e "${ROGUE_RED_ITALIC}[Rogue]${RESET} ${BOLD_ITALIC_UNDERLINE}Generating Session Script${RESET}\n"
 
     {
         echo '#!/bin/bash'

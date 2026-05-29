@@ -27,7 +27,8 @@ cmd_template() {
 }
 
 cmd_template_list() {
-    log_divider "--- Available Templates ---"
+    echo -e "\n────────────────────────────────────────────"
+    echo -e "${ROGUE_RED_ITALIC}[Rogue]${RESET} ${BOLD_ITALIC_UNDERLINE}Available Templates${RESET}\n"
 
     local templates_dir=""
     if [ -d "$ROGUE_DIR/RogueTemplates" ]; then
@@ -52,7 +53,7 @@ cmd_template_list() {
     done
 
     echo ""
-    log_info "$count templates available."
+    log_step "$count templates available."
 }
 
 cmd_template_tree() {
@@ -81,7 +82,8 @@ cmd_template_tree() {
         return 1
     fi
 
-    log_divider "--- Template: $template_name ---"
+    echo -e "\n────────────────────────────────────────────"
+    echo -e "${ROGUE_RED_ITALIC}[Rogue]${RESET} ${BOLD_ITALIC_UNDERLINE}Template: $template_name${RESET}\n"
 
     echo -e "  ${template_name}.sh"
     if [ -d "$template_path/files" ] && [ "$(ls -A "$template_path/files" 2>/dev/null)" ]; then

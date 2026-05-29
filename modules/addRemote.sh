@@ -60,18 +60,19 @@ cmd_addRemote() {
         [ -n "$user_desc" ] && desc_msg="$user_desc"
     fi
 
-    log_divider "--- Attaching Cloud Remotes ---"
+    echo -e "\n────────────────────────────────────────────"
+    echo -e "${ROGUE_RED_ITALIC}[Rogue]${RESET} ${BOLD_ITALIC_UNDERLINE}Attaching Cloud Remotes${RESET}\n"
 
     if [[ "$target_remote" == "github" || "$target_remote" == "both" ]]; then
         if git remote get-url github > /dev/null 2>&1; then
             log_error "'github' remote already exists."
         else
             check_github_auth || return 1
-            log_info "Creating GitHub repository ($visibility)..."
+            log_step "Creating GitHub repository ($visibility)..."
             gh repo create "$project_name" --"$visibility" --description "$desc_msg"
             local gh_user=$(gh api user --jq .login)
             git remote add github "https://github.com/$gh_user/$project_name.git"
-            log_info "Pushing to GitHub..."
+            log_step "Pushing to GitHub..."
             git push -u github master
             log_success "GitHub remote attached."
         fi
@@ -82,11 +83,11 @@ cmd_addRemote() {
             log_error "'gitlab' remote already exists."
         else
             check_gitlab_auth || return 1
-            log_info "Creating GitLab repository ($visibility)..."
+            log_step "Creating GitLab repository ($visibility)..."
             glab repo create "$project_name" --"$visibility" --description "$desc_msg"
             local gl_user=$(glab api user -q '.username')
             git remote add gitlab "https://gitlab.com/$gl_user/$project_name.git"
-            log_info "Pushing to GitLab..."
+            log_step "Pushing to GitLab..."
             git push -u gitlab master
             log_success "GitLab remote attached."
         fi
