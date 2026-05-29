@@ -9,6 +9,7 @@ PROJECTS_DIR="$HOME/Desktop/projects"
 TEMPLATES_DIR="$HOME/Desktop/projects/RoguePM/RogueTemplates"
 LOCAL_PROJECTS_LIST="$HOME/Desktop/projects/RoguePM/rp.list"
 DEFAULT_REMOTE="github"
+readonly VERSION="1.0.0"
 
 if [ -n "$BASH_SOURCE" ]; then
     ROGUE_SCRIPT_PATH="$(realpath "${BASH_SOURCE[0]}" 2>/dev/null)"
@@ -49,6 +50,20 @@ log_divider() {
 }
 
 print_banner() {
+    echo -e "${ROGUE_RED_SOLID}"
+    cat << "EOF"
+  ____                                  ____   __  __ 
+ |  _ \  ___    __ _  _   _   ___      |  _ \ |  \/  |
+ | |_) |/ _ \  / _` || | | | / _ \     | |_) || |\/| |
+ |  _ <| (_) || (_| || |_| ||  __/     |  __/ | |  | |
+ |_| \_\\___/  \__, | \__,_| \___|_____|_|    |_|  |_|
+               |___/             |_____|
+EOF
+    echo -e "${RESET}"
+    echo
+}
+
+print_divider() {
     echo -e "${ROGUE_RED_SOLID}>=-=-=-=-=-=-=-=[ ${BOLD}*${ROGUE_RED_SOLID} ]=-=-=-=-=-=-=-=<${RESET}"
 }
 
@@ -435,6 +450,7 @@ main() {
             cmd_setPat ;;
         setup) cmd_setup "$@" ;;
         open) cmd_open "$@" ;;
+        --version|-v) log_info "RoguePM v${VERSION}" ;;
         --help|-h|help) print_help ;;
         *)
             log_error "Unknown command: $command"
