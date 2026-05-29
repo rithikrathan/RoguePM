@@ -1,5 +1,4 @@
 #!/bin/bash
-
 CONFIG_FILE="$HOME/.roguerc"
 PROJECTS_DIR="$HOME/Desktop/projects"
 TEMPLATES_DIR="$HOME/Desktop/projects/RoguePM/RogueTemplates"
@@ -790,6 +789,7 @@ cmd_setup() {
         chmod +x "$HOME/.local/bin/rogue"
     fi
 
+    log_info "Copying templates..."
     if [ -d "$ROGUE_DIR/RogueTemplates" ]; then
         log_info "Copying templates..."
         rsync -avh "$ROGUE_DIR/RogueTemplates/" "$HOME/.config/rogue/templates/" > /dev/null 2>&1
