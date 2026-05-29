@@ -263,15 +263,15 @@ cmd_new_session() {
                     echo ''
                     ;;
                 opencode)
-                    echo "# opencode window (shell left 31%, opencode right 69%)"
+                    echo "# opencode window (opencode left 69%, terminal right 31%)"
                     if $first_window; then
                         echo 'tmux new-session -d -s "$SESSION" -n "opencode" -c "$TARGET_DIR"'
                         first_window=false
                     else
                         echo 'tmux new-window -t "$SESSION" -n "opencode" -c "$TARGET_DIR"'
                     fi
-                    echo 'tmux split-window -h -t "$SESSION:opencode" -p 69 -c "$TARGET_DIR"'
-                    echo 'tmux send-keys -t "$SESSION:opencode.right" "opencode" C-m'
+                    echo 'tmux send-keys -t "$SESSION:opencode" "opencode" C-m'
+                    echo 'tmux split-window -h -t "$SESSION:opencode" -p 31 -c "$TARGET_DIR"'
                     echo ''
                     ;;
                 custom)

@@ -19,10 +19,10 @@ tmux send-keys -t "$SESSION:lazygit" "lazygit" C-m
 tmux new-window -t "$SESSION" -n "superfile" -c "/home/rithik/Desktop/projects/RoguePM"
 tmux send-keys -t "$SESSION:superfile" "spf" C-m
 
-# opencode window (shell left 31%, opencode right 69%)
-# tmux new-window -t "$SESSION" -n "opencode" -c "/home/rithik/Desktop/projects/RoguePM"
-# tmux split-window -h -t "$SESSION:opencode" -p 69 -c "/home/rithik/Desktop/projects/RoguePM"
-# tmux send-keys -t "$SESSION:opencode.right" "opencode" C-m
+# opencode window (opencode left 69%, terminal right 31%)
+tmux new-window -t "$SESSION" -n "opencode" -c "/home/rithik/Desktop/projects/RoguePM"
+tmux send-keys -t "$SESSION:opencode" "opencode" C-m
+tmux split-window -h -t "$SESSION:opencode" -p 31 -c "/home/rithik/Desktop/projects/RoguePM"
 
 tmux select-window -t "$SESSION:editor"
 tmux attach-session -t "$SESSION"
