@@ -970,6 +970,249 @@ cmd_remote_cleanup() {
 
 ---
 
+## 25. `rogue ai context <name>`
+
+**Purpose:** Compact project summary formatted for pasting into AI chats (Claude, ChatGPT, etc).
+
+**Usage:** `rogue ai context rogue`
+
+**Implementation:**
+
+```bash
+cmd_ai_context() {
+    local name="$1"
+    # Collect:
+    #   Project name + description (from note)
+    #   Language / stack (from inspect heuristics)
+    #   Branch name
+    #   Last 5 commits (git log -5 --oneline)
+    #   Uncommitted diff (git diff --stat)
+    #   Tags from manifest
+    # Print as plain text block ready to paste
+}
+```
+
+**Output style:**
+```
+────────────────────────────────────────────
+[Rogue] AI Context: rogue
+
+  Project:  RoguePM
+  Stack:    Bash CLI
+  Branch:   main
+  Tags:     tool, productivity
+
+  Recent:
+    • 509cb6b Included plan.md for future additions
+    • c143020 style: fancy assistant-style output
+    • 1ac9f2a style: restyled new command output
+
+  Changes:   3 files modified, +12 -4
+```
+
+---
+
+## 26. `rogue lint <name>`
+
+**Purpose:** Detect the project's linter and run it.
+
+**Usage:** `rogue lint rogue`
+
+**Heuristics:**
+
+```bash
+cmd_lint() {
+    # Check for linter configs in project root:
+    #   .eslintrc*         → npx eslint
+    #   .ruff.toml         → ruff check
+    #   Cargo.toml          → cargo clippy
+    #   go.mod              → go vet
+    #   pyproject.toml      → ruff or pylint or flake8
+    #   hadolint.yml        → hadolint Dockerfile
+    #   .shellcheckrc       → shellcheck
+    # Fallback: print "No linter detected"
+}
+```
+
+**Flags:**
+- `--fix` — run linter in fix mode if supported
+
+**Output style:**
+```
+────────────────────────────────────────────
+[Rogue] Linting rogue
+
+  ◆ Detected: shellcheck
+  ◆ Running shellcheck...
+
+  No issues found.
+```
+
+```
+────────────────────────────────────────────
+[Rogue] Linting my-site
+
+  ◆ Detected: ESLint
+  ◆ Running eslint...
+
+  src/App.tsx:14:3  warning  'unused' is defined but never used
+  1 warning found
+```
+
+---
+
+## 27. `rogue test <name>`
+
+**Purpose:** Detect the project's test framework and run tests.
+
+**Usage:** `rogue test rogue`
+
+**Heuristics:**
+
+```bash
+cmd_test() {
+    # Check for test configs:
+    #   package.json + "scripts.test"       → npm test
+    #   Cargo.toml                          → cargo test
+    #   go.mod                              → go test ./...
+    #   pyproject.toml with pytest          → pytest
+    #   Makefile with test target           → make test
+    #   *.test.sh                           → shellspec
+}
+```
+
+**Flags:**
+- `--watch` — run in watch mode if supported
+- `--coverage` — run with coverage if supported
+
+**Output style:**
+```
+────────────────────────────────────────────
+[Rogue] Testing rogue
+
+  ◆ Detected: shellspec
+  ◆ Running tests...
+
+  Running: 12 examples, 0 failures
+```
+
+---
+
+## 28. `rogue changelog <name>`
+
+**Purpose:** Print a formatted changelog from git history.
+
+**Usage:** `rogue changelog rogue`
+
+**Flags:**
+- `--count 20` — number of commits (default: 10)
+- `--since "2026-01-01"` — since date
+- `--format oneline|pretty|markdown` — output format
+
+**Implementation:**
+
+```bash
+cmd_changelog() {
+    local name="$1"
+    # git log --oneline or pretty format
+    # Group by date or by type if conventional commits detected
+    # Highlight tags/versions if annotated tags exist
+}
+```
+
+**Output style:**
+```
+────────────────────────────────────────────
+[Rogue] Changelog: rogue
+
+  v1.0.0 (2026-05-29)
+    • Included plan.md for future additions
+    • style: restyled all command output
+    • style: fancy assistant-style output
+
+  2026-05-28
+    • Initial commit
+```
+
+---
+
+## 29. `rogue graph`
+
+**Purpose:** Generate a DOT graph of project relationships (dependencies, tags).
+
+**Usage:** `rogue graph`
+
+**Implementation:**
+
+```bash
+cmd_graph() {
+    # Start DOT output:
+    #   digraph RoguePM {
+    #       node [shape=box];
+    # For each project, look for dependency hints:
+    #   package.json — "dependencies" referencing other local projects
+    #   Cargo.toml — path dependencies
+    #   go.mod — replace directives
+    # Default: connect projects sharing same tag
+    # Output to stdout
+}
+```
+
+**Flags:**
+- `--output file.dot` — write to file instead of stdout
+- `--render` — render with dot + open image
+- `--tag web` — only projects with a specific tag
+
+**Output style:**
+```
+────────────────────────────────────────────
+[Rogue] Project Graph
+
+  digraph RoguePM {
+      node [shape=box];
+      "rogue" -> "my-site" [label="depends"];
+      "my-site" -> "rogue" [label="tag: tool"];
+      "notes-app" -> "my-site" [label="tag: web"];
+  }
+
+  Pipe to graphviz: dot -Tpng graph.dot -o graph.png
+```
+
+---
+
+## 30. `rogue sync`
+
+**Purpose:** Fetch and pull latest changes across all projects.
+
+**Usage:** `rogue sync`
+
+**Implementation:**
+
+```bash
+cmd_sync() {
+    # For each git project:
+    #   git fetch --all --quiet
+    #   If behind: git pull --ff-only
+    #   Report: up-to-date / pulled N commits / error
+}
+```
+
+**Flags:**
+- `--push` — also push local commits (like lightweight snapshot)
+- `--project rogue` — only sync one project
+
+**Output style:**
+```
+────────────────────────────────────────────
+[Rogue] Syncing Projects
+
+  ◆ rogue        ✓ up to date
+  ◆ my-site      ✓ pulled 2 commits
+  ◆ notes-app    ✗ merge conflict — resolve manually
+```
+
+---
+
 ## Dispatcher & Module Structure
 
 **In `rogue` (main dispatcher), add to the case statement:**
@@ -977,8 +1220,9 @@ cmd_remote_cleanup() {
 ```bash
 case "$command" in
     # existing commands...
-    init|list|recent|archive|unarchive|purge|rename|tag|note|diary|task|inspect|health|doctor|next|tidy|daily|share|serve|update|prune|cleanup|stats|config)
-        "cmd_$command" "$@" ;;
+    ai)                     cmd_ai "$@" ;;
+    init|list|recent|archive|unarchive|purge|rename|tag|note|diary|task|inspect|health|doctor|next|tidy|daily|share|serve|lint|test|changelog|graph|sync|update|prune|cleanup|stats|config)
+                            "cmd_$command" "$@" ;;
 esac
 ```
 
@@ -992,7 +1236,12 @@ esac
 | `modules/inspect.sh` | inspect, health, doctor, next |
 | `modules/maintain.sh` | tidy, prune, remote cleanup, update |
 | `modules/daily.sh` | daily, share, serve |
+| `modules/ai.sh` | ai context |
+| `modules/ci.sh` | lint, test |
 | `modules/stats.sh` | stats |
+| `modules/changelog.sh` | changelog |
+| `modules/graph.sh` | graph |
+| `modules/sync.sh` | sync |
 | `modules/template.sh` | (existing) + template create |
 | `rogue` (inline) | setup, config |
 
