@@ -19,10 +19,10 @@ cmd_open() {
                 echo -e "\n${ROGUE_RED_ITALIC}[Rogue]${RESET} ${BOLD}OPEN COMMAND USAGE${RESET}"
                 echo -e "source rogue open [options] [query]\n"
                 echo -e "  -t, --terminal     Run session.sh"
-                echo -e "  -g, --gui          Use rofi instead of fzf"
+                echo -e "  -g, --gui          Use rofi instead of fzf (for some reaSON)"
                 echo -e "  --term             Open project in $TERMINAL_APP"
                 echo -e "  --explorer         Open project in $FILE_MANAGER"
-                echo -e "\n  [query]            Pre-fill search with this text"
+                echo -e "\n  [query]          Automatically change to the first directory that matches"
                 return 0 ;;
             *) search_query="$1"; shift ;;
         esac
@@ -59,10 +59,20 @@ cmd_open() {
     local selected_line
     if [ "$use_gui" == "true" ]; then
         if ! command -v rofi &> /dev/null; then log_error "'rofi' is not installed."; return 1; fi
-        selected_line=$(printf "%s\n" "${fzf_entries[@]}" | rofi -dmenu -i -p "Rogue Open" ${search_query:+-filter "$search_query"})
+        local rofi_args=(-dmenu -i -p "Rogue Open")
+        [[ -n "$search_query" ]] && rofi_args+=(-filter "$search_query")
+        selected_line=$(printf "%s\n" "${fzf_entries[@]}" | rofi "${rofi_args[@]}")
     else
         if ! command -v fzf &> /dev/null; then log_error "'fzf' is not installed."; return 1; fi
-        selected_line=$(printf "%s\n" "${fzf_entries[@]}" | fzf --prompt="[Rogue] Open > " --height=40% --border=rounded --color="prompt:#ff2030,info:#40ff20,pointer:#ff2030" ${search_query:+--query "$search_query"})
+
+        local fzf_args=(
+            --prompt="[Rogue] Open > "
+            --height=40%
+            --border=rounded
+            --color="prompt:#ff2030,info:#40ff20,pointer:#ff2030"
+        )
+        [[ -n "$search_query" ]] && fzf_args+=(--query "$search_query")
+        selected_line=$(printf "%s\n" "${fzf_entries[@]}" | fzf "${fzf_args[@]}")
     fi
 
     [ -z "$selected_line" ] && return 0
