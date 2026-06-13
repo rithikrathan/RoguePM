@@ -64,15 +64,16 @@ cmd_open() {
         selected_line=$(printf "%s\n" "${fzf_entries[@]}" | rofi "${rofi_args[@]}")
     else
         if ! command -v fzf &> /dev/null; then log_error "'fzf' is not installed."; return 1; fi
-
         local fzf_args=(
             --prompt="[Rogue] Open > "
             --height=40%
             --border=rounded
             --color="prompt:#ff2030,info:#40ff20,pointer:#ff2030"
         )
-        [[ -n "$search_query" ]] && fzf_args+=(--query "$search_query")
-        selected_line=$(printf "%s\n" "${fzf_entries[@]}" | fzf "${fzf_args[@]}")
+
+        [[ -n "$search_query" ]] && fzf_args+=(--filter "$search_query")
+
+        selected_line=$(printf "%s\n" "${fzf_entries[@]}" | fzf "${fzf_args[@]}" | head -1)
     fi
 
     [ -z "$selected_line" ] && return 0
