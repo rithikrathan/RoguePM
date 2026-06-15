@@ -26,6 +26,7 @@ ROGUE_RED_SOLID="\e[1;31m"
 GREEN="\e[32m"
 YELLOW="\e[33m"
 CYAN="\e[36m"
+GRAY="\e[90m"
 RESET="\e[0m"
 BOLD="\e[1m"
 BOLD_ITALIC_UNDERLINE="\e[1;3;4m"
@@ -54,12 +55,13 @@ log_divider() {
 print_banner() {
     echo -e "${ROGUE_RED_SOLID}"
     cat << "EOF"
-  ____                                  ____   __  __ 
- |  _ \  ___    __ _  _   _   ___      |  _ \ |  \/  |
- | |_) |/ _ \  / _` || | | | / _ \     | |_) || |\/| |
- |  _ <| (_) || (_| || |_| ||  __/     |  __/ | |  | |
- |_| \_\\___/  \__, | \__,_| \___|_____|_|    |_|  |_|
-               |___/             |_____|
+'||'''|,                                   '||'''|, '||\   /||` 
+ ||   ||                                    ||   ||  ||\\.//||  
+ ||...|' .|''|, .|''|, '||  ||` .|''|,      ||...|'  ||     ||  
+ || \\   ||  || ||  ||  ||  ||  ||..||      ||       ||     ||  
+.||  \\. `|..|' `|..||  `|..'|. `|...      .||      .||     ||. 
+                    ||              .\\\\\'                     
+                 `..|'                                          
 EOF
     echo -e "${RESET}"
 }
@@ -78,6 +80,7 @@ print_help() {
     echo -e "  ${BOLD}new${RESET}          Create a new project (run 'rogue new --help')"
     echo -e "  ${BOLD}snapshot${RESET}     Push changes from all projects to ALL configured remotes"
     echo -e "  ${BOLD}template${RESET}     List templates or view template file tree"
+    echo -e "  ${BOLD}list${RESET}         List all projects with branch, status, and last commit"
     echo -e "  ${BOLD}open${RESET}         Open a project directory using fzf/rofi"
     echo -e "  ${BOLD}setPat${RESET}       Embeds \$GHPAT/\$GLPAT into all HTTPS git remote URLs"
     echo -e "  ${BOLD}addRemote${RESET}    Creates and adds a specified remote (github/gitlab)"
@@ -462,6 +465,8 @@ main() {
             cmd_setPat ;;
                 
         setup) cmd_setup "$@" ;;
+
+        list) cmd_list "$@" ;;
 
         open) cmd_open "$@" ;;
         --version|-v) log_info "RoguePM v${VERSION}" ;;

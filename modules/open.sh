@@ -56,6 +56,21 @@ cmd_open() {
         return 1
     fi
 
+    # Align the '|' separator
+    local max_width=0
+    for entry in "${fzf_entries[@]}"; do
+        local name="${entry%  |  *}"
+        (( ${#name} > max_width )) && max_width=${#name}
+    done
+
+    local padded_entries=()
+    for entry in "${fzf_entries[@]}"; do
+        local name="${entry%  |  *}"
+        local path="${entry#*  |  }"
+        padded_entries+=("$(printf "%-*s  |  %s" "$max_width" "$name" "$path")")
+    done
+    fzf_entries=("${padded_entries[@]}")
+
     local selected_line
     if [ "$use_gui" == "true" ]; then
         if ! command -v rofi &> /dev/null; then log_error "'rofi' is not installed."; return 1; fi
