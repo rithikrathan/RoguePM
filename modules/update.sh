@@ -64,6 +64,12 @@ cmd_update() {
     local sym_flag=""
     [ -L "$HOME/.local/bin/rogue" ] && sym_flag="--sym"
 
+    local config_bkup
+    if [ -f "$HOME/.config/rogue/rogueConf.json" ]; then
+        config_bkup=$(mktemp)
+        cp "$HOME/.config/rogue/rogueConf.json" "$config_bkup"
+    fi
+
     echo ""
     log_step "Removing old installation..."
     cmd_setup --remove
@@ -71,4 +77,10 @@ cmd_update() {
     echo ""
     log_step "Installing updated version..."
     cmd_setup --force $sym_flag
+
+    if [ -n "$config_bkup" ]; then
+        cp "$config_bkup" "$HOME/.config/rogue/rogueConf.json"
+        rm -f "$config_bkup"
+        log_step "Preserved your existing rogueConf.json"
+    fi
 }
