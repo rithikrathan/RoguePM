@@ -41,24 +41,25 @@ cmd_update() {
     local behind=$(git -C "$repo_dir" rev-list --count "HEAD..origin/$branch" 2>/dev/null)
     local ahead=$(git -C "$repo_dir" rev-list --count "origin/$branch..HEAD" 2>/dev/null)
 
-    if [ "$behind" -eq 0 ]; then
-        log_info "Already up to date. No update needed."
-        return 0
-    fi
+    if [ "$behind" -gt 0 ] && [ "$ahead" -eq 0 ]; then
+        log_info "Behind origin/$branch by ${BOLD}$behind${RESET} commit(s). Pulling..."
+        if ! git -C "$repo_dir" pull origin "$branch" 2>&1; then
+            log_error "Pull failed. There may be merge conflicts."
+            log_info "Resolve conflicts in $repo_dir, then run 'rogue setup --force'."
+            return 1
+        fi
+        log_success "Pulled latest changes from origin/$branch."
+    else
+        if [ "$ahead" -gt 0 ] && [ "$behind" -gt 0 ]; then
+            log_info "Local repo has $ahead unpushed commit(s) and is behind by $behind — skipping pull."
+        else
+            log_info "Already up to date. No pull needed."
+        fi
 
-    if [ "$ahead" -gt 0 ]; then
-        log_info "Local repo has $ahead unpushed commit(s) and is behind by $behind — skipping auto-pull."
-        log_info "Run 'git pull' manually in $repo_dir, then 'rogue setup --force'."
-        return 1
+        local choice
+        log_prompt "Reinstall local repo? (y/n): " choice
+        [[ ! "$choice" =~ ^[Yy]$ ]] && { log_info "Update aborted."; return 0; }
     fi
-
-    log_info "Behind origin/$branch by ${BOLD}$behind${RESET} commit(s). Pulling..."
-    if ! git -C "$repo_dir" pull origin "$branch" 2>&1; then
-        log_error "Pull failed. There may be merge conflicts."
-        log_info "Resolve conflicts in $repo_dir, then run 'rogue setup --force'."
-        return 1
-    fi
-    log_success "Pulled latest changes from origin/$branch."
 
     local sym_flag=""
     [ -L "$HOME/.local/bin/rogue" ] && sym_flag="--sym"
