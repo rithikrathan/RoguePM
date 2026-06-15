@@ -85,6 +85,7 @@ print_help() {
     echo -e "  ${BOLD}setPat${RESET}       Embeds \$GHPAT/\$GLPAT into all HTTPS git remote URLs"
     echo -e "  ${BOLD}addRemote${RESET}    Creates and adds a specified remote (github/gitlab)"
     echo -e "  ${BOLD}setup${RESET}        Install RoguePM to ~/.local/bin and ~/.config/rogue"
+    echo -e "  ${BOLD}update${RESET}       Pull latest from git repo and reinstall"
     echo -e "  ${BOLD}help${RESET}         Show this general help message\n"
 }
 
@@ -465,6 +466,8 @@ main() {
             cmd_setPat ;;
                 
         setup) cmd_setup "$@" ;;
+
+        update) cmd_update "$@" ;;
 
         list) cmd_list "$@" ;;
 
