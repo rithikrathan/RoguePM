@@ -7,6 +7,8 @@ cmd_list() {
     local filter_status=""
     local filter_branch=""
     local filter_remote=""
+    local GIT_PFX=""
+    command -v timeout &>/dev/null && GIT_PFX="timeout 5 "
 
     while [[ $# -gt 0 ]]; do
         case "$1" in
@@ -68,23 +70,23 @@ cmd_list() {
         local time_str=""
 
         if [ -d "$dir/.git" ]; then
-            branch=$(git -C "$dir" --no-optional-locks branch --show-current 2>/dev/null)
-            [ -z "$branch" ] && branch=$(git -C "$dir" --no-optional-locks rev-parse --short HEAD 2>/dev/null)
+            branch=$(${GIT_PFX}git -C "$dir" --no-optional-locks branch --show-current 2>/dev/null)
+            [ -z "$branch" ] && branch=$(${GIT_PFX}git -C "$dir" --no-optional-locks rev-parse --short HEAD 2>/dev/null)
 
-            if ! git -C "$dir" --no-optional-locks diff --quiet 2>/dev/null || ! git -C "$dir" --no-optional-locks diff --cached --quiet 2>/dev/null; then
+            if ! ${GIT_PFX}git -C "$dir" --no-optional-locks diff --quiet 2>/dev/null || ! ${GIT_PFX}git -C "$dir" --no-optional-locks diff --cached --quiet 2>/dev/null; then
                 dirty="true"
             fi
 
-            stash_count=$(git -C "$dir" --no-optional-locks stash list 2>/dev/null | wc -l)
+            stash_count=$(${GIT_PFX}git -C "$dir" --no-optional-locks stash list 2>/dev/null | wc -l)
             stash_count=$((stash_count + 0))
 
             local remote_names
-            remote_names=$(git -C "$dir" remote 2>/dev/null)
+            remote_names=$(${GIT_PFX}git -C "$dir" remote 2>/dev/null)
             if [ -n "$remote_names" ]; then
                 local has_gh=false has_gl=false
                 for r in $remote_names; do
                     local url
-                    url=$(git -C "$dir" remote get-url "$r" 2>/dev/null)
+                    url=$(${GIT_PFX}git -C "$dir" remote get-url "$r" 2>/dev/null)
                     case "$url" in
                         *github*) has_gh=true ;;
                         *gitlab*) has_gl=true ;;
@@ -101,23 +103,23 @@ cmd_list() {
                 fi
             fi
 
-            if [ -n "$filter_remote" ]; then
-                local fr_lower="${filter_remote,,}"
-                local all_urls
-                all_urls=$(git -C "$dir" remote -v 2>/dev/null)
-                local all_urls_lower="${all_urls,,}"
-                if [[ "$all_urls_lower" != *"$fr_lower"* ]]; then
-                    continue
-                fi
-            fi
+            time_str=$(${GIT_PFX}git -C "$dir" --no-optional-locks log -1 --format="%ar" 2>/dev/null)
+        fi
 
-            time_str=$(git -C "$dir" --no-optional-locks log -1 --format="%ar" 2>/dev/null)
+        if [ -n "$filter_remote" ]; then
+            local fr_lower="${filter_remote,,}"
+            local all_urls
+            all_urls=$(${GIT_PFX}git -C "$dir" remote -v 2>/dev/null)
+            local all_urls_lower="${all_urls,,}"
+            if [[ "$all_urls_lower" != *"$fr_lower"* ]]; then
+                continue
+            fi
         fi
 
         if [ -n "$filter_branch" ]; then
             local fb_lower="${filter_branch,,}" matched=false
             local all_branches
-            all_branches=$(git -C "$dir" --no-optional-locks branch --all --format='%(refname:short)' 2>/dev/null)
+            all_branches=$(${GIT_PFX}git -C "$dir" --no-optional-locks branch --all --format='%(refname:short)' 2>/dev/null)
             while IFS= read -r b; do
                 local b_lower="${b,,}"
                 if [[ "$b_lower" == *"$fb_lower"* ]]; then

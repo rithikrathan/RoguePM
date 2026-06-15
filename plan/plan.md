@@ -1,5 +1,42 @@
 # RoguePM Feature Plan
 
+## Command Ideas — Summary
+
+| # | Command | Purpose | Status |
+|---|---------|---------|--------|
+| 1 | `rogue init <dir>` | Import existing directory as a project | Idea |
+| 2 | `rogue list` | Table of all projects with metadata, filters | WIP |
+| 3 | `rogue recent [n]` | Show last N projects by commit time | Idea |
+| 4 | `rogue archive / unarchive <name>` | Shelf/unshelf a project without deleting | Idea |
+| 5 | `rogue purge <name>` | Permanently delete a project (local + remote) | Idea |
+| 6 | `rogue rename <old> <new>` | Rename project folder + update remote | Idea |
+| 7 | `rogue tag` | Add/remove/list project tags | Idea |
+| 8 | `rogue note` | Attach freeform description to a project | Idea |
+| 9 | `rogue diary` | Append timestamped diary entries | Idea |
+| 10 | `rogue inspect <name>` | Detect tech stack / framework / language | Idea |
+| 11 | `rogue health <name>` | Quality checklist per project | Idea |
+| 12 | `rogue doctor` | Low-level project integrity checks | Idea |
+| 13 | `rogue next` | Suggest which project to work on | Idea |
+| 14 | `rogue tidy` | Find and delete build artifacts | Idea |
+| 15 | `rogue daily` | Quick summary of today's activity | Idea |
+| 16 | `rogue share <name>` | Shareable project info card (md/json/pretty) | Idea |
+| 17 | `rogue serve <name>` | Auto-detect and start dev server | Idea |
+| 18 | `rogue task <name>` | Per-project TODO / task list | Idea |
+| 19 | `rogue template create <name>` | Turn existing project into a reusable template | Idea |
+| 20 | `rogue config` | Interactive editor for rogueConf.json | Idea |
+| 21 | `rogue stats` | Aggregate project statistics | Idea |
+| 22 | `rogue update` | Self-update RoguePM from its git repo | Idea |
+| 23 | `rogue prune` | Clean dead remotes and stale config | Idea |
+| 24 | `rogue remote cleanup` | Find orphaned remotes (no local project) | Idea |
+| 25 | `rogue ai context <name>` | Compact project summary formatted for AI chats | Idea |
+| 26 | `rogue lint <name>` | Detect and run the project's linter | Idea |
+| 27 | `rogue test <name>` | Detect and run the project's test framework | Idea |
+| 28 | `rogue changelog <name>` | Print formatted changelog from git history | Idea |
+| 29 | `rogue graph` | DOT graph of project tag/dependency relationships | Idea |
+| 30 | `rogue sync` | Fetch and pull latest across all projects | Idea |
+
+---
+
 ## Data Storage
 
 A single central manifest at `~/.config/rogue/manifest.json` stores all metadata:
