@@ -12,7 +12,7 @@ DEFAULT_REMOTE="github"
 TERMINAL_APP="alacritty"
 FILE_MANAGER="dolphin"
 
-readonly VERSION="1.0.0"
+readonly VERSION="1.1.0"
 if [ -n "$BASH_SOURCE" ]; then
     ROGUE_SCRIPT_PATH="$(realpath "${BASH_SOURCE[0]}" 2>/dev/null)"
 elif [ -n "$ZSH_VERSION" ]; then
