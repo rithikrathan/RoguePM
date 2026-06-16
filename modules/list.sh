@@ -56,7 +56,7 @@ cmd_list() {
         log_info "No projects found."
         return 0
     fi
-    echo -e "${ROGUE_RED_ITALIC}[Rogue]${RESET} ${BOLD_ITALIC_UNDERLINE}All Projects${RESET}\n"
+    echo -e "${ROGUE_RED_ITALIC}[Rogue]${RESET} ${BOLD_ITALIC_UNDERLINE}Listing Projects..... ${RESET}\n"
 
     declare -a names branches statuses stashes remotes time_strs local_flags
 
