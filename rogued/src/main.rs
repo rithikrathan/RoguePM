@@ -14,26 +14,48 @@
 
 use core::result::Result::Ok;
 use std::io::ErrorKind;
+use tokio::net::UnixListener;
+use tracing::{error, info}; // from unix socket
+
 // use serde::{Deserialize, Serialize};
 // use std::error::Error; //for errors
 // use tokio::io::{AsyncReadExt, AsyncWriteExt}; // read and write from stream
-// use tokio::new::{UnixListener, UnixStream}; // from unix socket
 
-static SOCKET_PATH: &str = "/tmp/rogued.sock";
+static SOCKET_BIND_PATH: &str = "/tmp/rogued.sock";
 
-fn main() {
-    println!("Hello Idiots!");
-    match std::fs::remove_file(SOCKET_PATH) {
+// =-=-=-=-=-=-=-= [ HELPER FUNCTIONS ] =-=-=-=-=-=-=-=
+async fn handle_unix_sockets() -> std::io::Result<()> {
+    let _listener = match UnixListener::bind(SOCKET_BIND_PATH) {
+        Ok(l) => l,
+        Err(e) => {
+            error!("Owned by skill issue, \r\nError: {}", e);
+            return Ok(());
+        }
+    };
+    Ok(())
+}
+
+// =-=-=-=-=-=-=-= [ MAIN FUNCTION ] =-=-=-=-=-=-=-=
+#[tokio::main]
+async fn main() -> std::io::Result<()> {
+    println!("Hello Idiots!"); // mandatory insult
+
+    // free old Socket Files if it already exists
+    match std::fs::remove_file(SOCKET_BIND_PATH) {
         Ok(()) => {
-            println!("Discarding existing socket files");
+            info!("Discarding existing socket files");
         }
 
         Err(e) => {
             if e.kind() == ErrorKind::NotFound {
-                println!("No existing socket files found");
+                info!("No existing socket files found");
             } else {
-                println!("Owned by skill issue, \r\nError: {}", e);
+                error!("Owned by skill issue, \r\nError: {}", e);
             }
         }
     }
+
+    handle_unix_sockets().await?; // first time using async rust btw
+
+    Ok(())
 }
