@@ -13,9 +13,9 @@
 // -----------------------------------------------------------------------------
 
 use core::result::Result::Ok;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::io::ErrorKind;
-use tokio::io::AsyncReadExt;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::UnixListener;
 use tracing::{Level, error, info}; // from unix socket
 use tracing_subscriber; // from unix socket // read and write from stream
@@ -32,12 +32,16 @@ struct Request {
     req: String,
 }
 
-// #[derive(Deserialize, Debug)]
-// struct Response {
-//     res: String,
-// }
+#[derive(Serialize, Debug)]
+struct Response {
+    res: String,
+}
 
 // =-=-=-=-=-=-=-= [ HELPER FUNCTIONS ] =-=-=-=-=-=-=-=
+
+// UNIXSOCKETS are the way out rogue script interacts witht he daemon, to handle tcp connections and
+// exchange project list, This connection is between the daemon and the rogue script, that happens
+// locally via a shared file
 async fn handle_unix_sockets() -> std::io::Result<()> {
     // bind a listener to that socket file and handle the errors
     let listener = match UnixListener::bind(SOCKET_BIND_PATH) {
@@ -56,15 +60,28 @@ async fn handle_unix_sockets() -> std::io::Result<()> {
                 info!("Socket connected");
                 // crete a mutable data buffer to store the incomming message
                 //spawn a process here for concurrency
-                let mut data = Vec::new();
+                let mut input_data = Vec::new();
                 // read till EOF into that buffer
-                if let Err(e) = stream.read_to_end(&mut data).await {
+                if let Err(e) = stream.read_to_end(&mut input_data).await {
                     //handle error
                     error!("While reading the input stream from the socket connection: \r\n{e}");
                 }
-                // parse the JSON here
-                let serialised_data: Request = serde_json::from_slice(&mut data)?;
-                println!("{:#?}", serialised_data);
+                // handle errors later
+                let serialised_request: Request = serde_json::from_slice(&mut input_data)?; // parse JSON 
+                if serialised_request.req == "ping" {
+                    println!("{:#?}", serialised_request);
+                }
+
+                let response = Response {
+                    res: "Pong!".to_string(),
+                };
+
+                let mut serialized_response = serde_json::to_vec(&response)?;
+                if let Err(e) = stream.write(&mut serialized_response).await {
+                    //handle error
+                    error!("While writing to the output stream of the socket connection: \r\n{e}");
+                }
+
                 // end the spawned process here
             }
             Err(e) => {
