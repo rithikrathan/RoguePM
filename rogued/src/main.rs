@@ -13,8 +13,9 @@
 // -----------------------------------------------------------------------------
 
 use core::result::Result::Ok;
+use serde::Deserialize;
 use std::io::ErrorKind;
-use tokio::io::{_AsyncWriteExt, AsyncReadExt};
+use tokio::io::AsyncReadExt;
 use tokio::net::UnixListener;
 use tracing::{Level, error, info}; // from unix socket
 use tracing_subscriber; // from unix socket // read and write from stream
@@ -23,6 +24,18 @@ use tracing_subscriber; // from unix socket // read and write from stream
 // use std::error::Error; //for errors
 
 static SOCKET_BIND_PATH: &str = "/tmp/rogued.sock";
+
+// =-=-=-=-=-=-=-= [ STRUCTS ] =-=-=-=-=-=-=-=
+
+#[derive(Deserialize, Debug)]
+struct Request {
+    req: String,
+}
+
+// #[derive(Deserialize, Debug)]
+// struct Response {
+//     res: String,
+// }
 
 // =-=-=-=-=-=-=-= [ HELPER FUNCTIONS ] =-=-=-=-=-=-=-=
 async fn handle_unix_sockets() -> std::io::Result<()> {
@@ -35,13 +48,11 @@ async fn handle_unix_sockets() -> std::io::Result<()> {
         }
     };
 
-    let data = Vec::new();
-
     // loop that handles the socket connections
     loop {
         // use the listener to accept incomming connections
         match listener.accept().await {
-            Ok((stream, _addr)) => {
+            Ok((mut stream, _addr)) => {
                 info!("Socket connected");
                 // crete a mutable data buffer to store the incomming message
                 //spawn a process here for concurrency
@@ -52,6 +63,8 @@ async fn handle_unix_sockets() -> std::io::Result<()> {
                     error!("While reading the input stream from the socket connection: \r\n{e}");
                 }
                 // parse the JSON here
+                let serialised_data: Request = serde_json::from_slice(&mut data)?;
+                println!("{:#?}", serialised_data);
                 // end the spawned process here
             }
             Err(e) => {
@@ -71,7 +84,7 @@ async fn main() -> std::io::Result<()> {
 
     println!("Hello Idiots!"); // mandatory insult
 
-    // free old Socket Files if it already exists
+    // remove old Socket Files if it exists
     match std::fs::remove_file(SOCKET_BIND_PATH) {
         Ok(()) => {
             info!("Discarding existing socket files");

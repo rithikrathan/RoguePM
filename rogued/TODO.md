@@ -10,7 +10,7 @@ Daemon listens on `/tmp/rogued.sock`. Bash sends `{"cmd":"ping"}`. Daemon replie
     - [x] Bind `UnixListener` to `/tmp/rogued.sock`
     - [x] Accept a connection in a loop
     - [x] Read all bytes from the stream (`read_to_end`)
-    - [ ] Parse JSON into `Request { cmd: String }` (`serde_json::from_slice`)
+    - [x] Parse JSON into `Request { cmd: String }` (`serde_json::from_slice`)
     - [ ] Check if `cmd == "ping"`
     - [ ] Build `Response { pong: true }` and serialize (`serde_json::to_string`)
     - [ ] Write JSON bytes back to the stream (`write_all`)
