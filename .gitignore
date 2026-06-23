@@ -4,7 +4,6 @@ plan/
 
 # Rust
 /rogued/target/
-/rogued/TODO.md
 **/*.rs.bk
 *.swp
 *.swo
