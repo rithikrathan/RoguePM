@@ -14,8 +14,8 @@ Daemon listens on `/tmp/rogued.sock`. Bash sends `{"cmd":"ping"}`. Daemon replie
     - [x] Check if `cmd == "ping"`
     - [x] Build `Response { pong: true }` and serialize (`serde_json::to_string`)
     - [x] Write JSON bytes back to the stream (`write_all`)
-    - [ ] Spawn each connection handler with `tokio::spawn`
-    - [ ] Test with `socat` from another terminal
+    - [x] Spawn each connection handler with `tokio::spawn`
+    - [x] Test with `socat` from another terminal
 
 ## Hello World 2: mDNS Discovery
 Two daemon instances discover each other via mDNS. Each prints/logs the peer's hostname and IP.

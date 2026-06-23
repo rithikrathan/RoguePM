@@ -13,14 +13,13 @@
 // -----------------------------------------------------------------------------
 
 use core::result::Result::Ok;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize}; // for serializations
 use std::io::ErrorKind;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::UnixListener;
 use tracing::{Level, error, info}; // from unix socket
 use tracing_subscriber; // from unix socket // read and write from stream
 
-// use serde::{Deserialize, Serialize};
 // use std::error::Error; //for errors
 
 static SOCKET_BIND_PATH: &str = "/tmp/rogued.sock";
@@ -57,32 +56,53 @@ async fn handle_unix_sockets() -> std::io::Result<()> {
         // use the listener to accept incomming connections
         match listener.accept().await {
             Ok((mut stream, _addr)) => {
-                info!("Socket connected");
-                // crete a mutable data buffer to store the incomming message
-                //spawn a process here for concurrency
-                let mut input_data = Vec::new();
-                // read till EOF into that buffer
-                if let Err(e) = stream.read_to_end(&mut input_data).await {
-                    //handle error
-                    error!("While reading the input stream from the socket connection: \r\n{e}");
-                }
-                // handle errors later
-                let serialised_request: Request = serde_json::from_slice(&mut input_data)?; // parse JSON 
-                if serialised_request.req == "ping" {
-                    println!("{:#?}", serialised_request);
-                }
+                tokio::spawn(async move {
+                    info!("Socket connected");
+                    // crete a mutable data buffer to store the incomming message
+                    //spawn a process here for concurrency
+                    let mut input_data = Vec::new();
+                    // read till EOF into that buffer
+                    if let Err(e) = stream.read_to_end(&mut input_data).await {
+                        //handle error
+                        error!(
+                            "While reading the input stream from the socket connection: \r\n{e}"
+                        );
+                    }
+                    // handle errors later
+                    let serialised_request: Request = match serde_json::from_slice(&input_data) {
+                        Ok(ser) => ser,
+                        Err(e) => {
+                            error!("Error while Deserialization: \r\n {}", e);
+                            return;
+                        }
+                    }; // parse JSON 
 
-                let response = Response {
-                    res: "Pong!".to_string(),
-                };
+                    if serialised_request.req == "ping" {
+                        println!("{:#?}", serialised_request);
+                        let response = Response {
+                            res: "Pong!".to_string(),
+                        };
 
-                let mut serialized_response = serde_json::to_vec(&response)?;
-                if let Err(e) = stream.write(&mut serialized_response).await {
-                    //handle error
-                    error!("While writing to the output stream of the socket connection: \r\n{e}");
-                }
+                        // crete a mutable data buffer to store the response message and serialize
+                        let mut serialized_response = match serde_json::to_vec(&response) {
+                            Ok(ser) => ser,
+                            Err(e) => {
+                                error!("Error while Serialization: \r\n {}", e);
+                                return;
+                            }
+                        };
 
-                // end the spawned process here
+                        if let Err(e) = stream.write_all(&mut serialized_response).await {
+                            //handle error
+                            error!(
+                                "While writing to the output stream of the socket connection: \r\n{e}"
+                            );
+                        }
+                    } else {
+                        // Anything other than "ping" as req
+                        println!("Something phishy... \r\n{:#?}", serialised_request);
+                    }
+                });
             }
             Err(e) => {
                 error!("Error when accepting socket connection, \r\n{}", e);
@@ -92,14 +112,15 @@ async fn handle_unix_sockets() -> std::io::Result<()> {
 }
 
 // =-=-=-=-=-=-=-= [ MAIN FUNCTION ] =-=-=-=-=-=-=-=
+
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
+    println!("Hello Idiots!"); // mandatory insult
+
     // To display logs on the standard IO
     tracing_subscriber::fmt()
         .with_max_level(Level::TRACE)
         .init();
-
-    println!("Hello Idiots!"); // mandatory insult
 
     // remove old Socket Files if it exists
     match std::fs::remove_file(SOCKET_BIND_PATH) {
