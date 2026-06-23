@@ -1,1 +1,9 @@
 trash/
+
+# Rust
+/rogued/target/
+**/*.rs.bk
+*.swp
+*.swo
+*~
+.DS_Store

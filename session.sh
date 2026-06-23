@@ -19,6 +19,9 @@ tmux send-keys -t "$SESSION:lazygit" "lazygit" C-m
 tmux new-window -t "$SESSION" -n "superfile" -c "/home/rithik/Desktop/projects/RoguePM"
 tmux send-keys -t "$SESSION:superfile" "spf" C-m
 
+tmux new-window -t "$SESSION" -n "docs" -c "/home/rithik/Desktop/projects/RoguePM"
+tmux send-keys -t "$SESSION:docs" "rdocs rust" C-m
+
 # opencode window (opencode left 69%, terminal right 31%)
 tmux new-window -t "$SESSION" -n "opencode" -c "/home/rithik/Desktop/projects/RoguePM"
 tmux send-keys -t "$SESSION:opencode" "opencode" C-m

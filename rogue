@@ -1,8 +1,7 @@
 #!/bin/bash
 
-# ORCHESTRATOR: RoguePM
+# DISPATCHER: RoguePM
 # ==========================================
-# yeah a fancy name
 
 CONFIG_FILE="$HOME/.roguerc"
 PROJECTS_DIR="$HOME/Desktop/projects"
@@ -18,9 +17,10 @@ if [ -n "$BASH_SOURCE" ]; then
 elif [ -n "$ZSH_VERSION" ]; then
     ROGUE_SCRIPT_PATH="$(realpath "$0" 2>/dev/null)"
 fi
+
 ROGUE_DIR="${ROGUE_SCRIPT_PATH:+$(dirname "$ROGUE_SCRIPT_PATH")}"
 
-
+# Style definitions
 ROGUE_RED_ITALIC="\e[1;3;31m"
 ROGUE_RED_SOLID="\e[1;31m"
 GREEN="\e[32m"
