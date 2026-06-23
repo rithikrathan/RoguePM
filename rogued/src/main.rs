@@ -14,30 +14,61 @@
 
 use core::result::Result::Ok;
 use std::io::ErrorKind;
+use tokio::io::{_AsyncWriteExt, AsyncReadExt};
 use tokio::net::UnixListener;
-use tracing::{error, info}; // from unix socket
+use tracing::{Level, error, info}; // from unix socket
+use tracing_subscriber; // from unix socket // read and write from stream
 
 // use serde::{Deserialize, Serialize};
 // use std::error::Error; //for errors
-// use tokio::io::{AsyncReadExt, AsyncWriteExt}; // read and write from stream
 
 static SOCKET_BIND_PATH: &str = "/tmp/rogued.sock";
 
 // =-=-=-=-=-=-=-= [ HELPER FUNCTIONS ] =-=-=-=-=-=-=-=
 async fn handle_unix_sockets() -> std::io::Result<()> {
-    let _listener = match UnixListener::bind(SOCKET_BIND_PATH) {
+    // bind a listener to that socket file and handle the errors
+    let listener = match UnixListener::bind(SOCKET_BIND_PATH) {
         Ok(l) => l,
         Err(e) => {
             error!("Owned by skill issue, \r\nError: {}", e);
             return Ok(());
         }
     };
-    Ok(())
+
+    let data = Vec::new();
+
+    // loop that handles the socket connections
+    loop {
+        // use the listener to accept incomming connections
+        match listener.accept().await {
+            Ok((stream, _addr)) => {
+                info!("Socket connected");
+                // crete a mutable data buffer to store the incomming message
+                //spawn a process here for concurrency
+                let mut data = Vec::new();
+                // read till EOF into that buffer
+                if let Err(e) = stream.read_to_end(&mut data).await {
+                    //handle error
+                    error!("While reading the input stream from the socket connection: \r\n{e}");
+                }
+                // parse the JSON here
+                // end the spawned process here
+            }
+            Err(e) => {
+                error!("Error when accepting socket connection, \r\n{}", e);
+            }
+        }
+    }
 }
 
 // =-=-=-=-=-=-=-= [ MAIN FUNCTION ] =-=-=-=-=-=-=-=
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
+    // To display logs on the standard IO
+    tracing_subscriber::fmt()
+        .with_max_level(Level::TRACE)
+        .init();
+
     println!("Hello Idiots!"); // mandatory insult
 
     // free old Socket Files if it already exists
