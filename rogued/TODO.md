@@ -20,18 +20,19 @@ Daemon listens on `/tmp/rogued.sock`. Bash sends `{"cmd":"ping"}`. Daemon replie
 ## Hello World 2: mDNS Discovery
 Two daemon instances discover each other via mDNS. Each prints/logs the peer's hostname and IP.
 - Proves: mDNS registration + browsing works, spawn/channel refactor, shared state with Arc<Mutex>
-    - [ ] 2.1 Add deps `tokio-stream` and `gethostname` with `cargo add`
-    - [ ] 2.2 Get mDNS daemon handle (`libmdns::daemon()`)
-    - [ ] 2.3 Register `_roguepm._tcp` service with hostname and port (`responder.register()`)
-    - [ ] 2.4 Browse for `_roguepm._tcp` services (`responder.browse()`, `StreamExt::next().await`)
-    - [ ] 2.5 Extract hostname and IP on `NewService` (`svc.hostname()`, `svc.addresses()`, `info!`)
+    - [x] 2.1 Add deps `tokio-stream`, `gethostname`, and `mdns-sd` with `cargo add`
+    - [x] 2.2 Create mDNS daemon (`mdns_sd::ServiceDaemon::new()`)
+    - [x] 2.2.1 Optional monitor of the mdns daemon for some errors
+    - [ ] 2.3 Register `_roguepm._tcp.local` service with hostname and port (`daemon.register(ServiceInfo::new(...))`)
+    - [ ] 2.4 Browse for `_roguepm._tcp.local` services (`daemon.browse(...)` returns `flume::Receiver<ServiceEvent>`)
+    - [ ] 2.5 Match `ServiceEvent::ServiceResolved(svc)`, extract hostname and IP (`svc.get_hostname()`, `svc.get_addresses_v4()`, `info!`)
     - [ ] 2.6 Spawn socket handler as background task (`tokio::spawn`)
-    - [ ] 2.7 Spawn mDNS tasks as background, keep handles alive with `std::future::pending`
-    - [ ] 2.8 Create mpsc channel, wire browser → main (`mpsc::channel`, `tx.send().await`)
-    - [ ] 2.9 Main loop receives and logs peers (`rx.recv().await`, `while let Some`)
+    - [ ] 2.7 Keep daemon alive (`ServiceDaemon` is `Clone`, Arc internally — no need for `std::future::pending`)
+    - [ ] 2.8 Use the `flume::Receiver` from `daemon.browse()` directly (`rx.recv()` sync / `rx.recv_async().await` async)
+    - [ ] 2.9 Main loop receives and logs peers (`while let Ok(event) = rx.recv()`)
     - [ ] 2.10 Build peer table shared across tasks (`Arc<Mutex<HashMap>>`, `Arc::clone`)
     - [ ] 2.11 Socket command `list_peers` returns JSON peer table (`serde_json::to_string`)
-    - [ ] 2.12 Handle `RemoveService` — remove from table, notify main via `PeerEvent` enum
+    - [ ] 2.12 Handle `ServiceEvent::ServiceRemoved` — remove from peer table
     - [ ] 2.13 Graceful shutdown (`tokio::signal::ctrl_c`, `std::fs::remove_file`)
 
 ## Hello World 3: TCP Handshake + Identity
