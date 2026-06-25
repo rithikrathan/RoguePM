@@ -62,15 +62,15 @@ Levels: `ERROR`, `WARN`, `INFO` (default), `DEBUG`, `TRACE`
 ## Architecture
 
 ```
-┌─────────────┐     UNIX Socket      ┌──────────────────┐
-│  rogue.sh   │ ◄─────────────────►  │    rogued        │
-│ (bash CLI)  │   /tmp/rogued.sock   │  (Rust daemon)   │
-└─────────────┘                      └────────┬─────────┘
+┌─────────────┐     UNIX Socket      ┌────────────────┐
+│  rogue.sh   │ ◄─────────────────►  │    rogued      │
+│ (bash CLI)  │   /tmp/rogued.sock   │  (Rust daemon) │
+└─────────────┘                      └────────┬───────┘
                                               │
                                     mDNS (port 5353)
                                               │
                                       ┌───────┴───────┐
-                                      │  LAN Peers     │
+                                      │   LAN Peers   │
                                       └───────────────┘
 ```
 

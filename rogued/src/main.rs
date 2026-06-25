@@ -145,6 +145,11 @@ async fn discover_hosts(
                         .insert(serv_resolved.get_hostname().to_string(), ip_str);
                 }
 
+                ServiceEvent::ServiceRemoved(_, fullname) => {
+                    info!("Service reremoved: {}", fullname);
+                    peers.blocking_lock().remove(&fullname);
+                }
+
                 other_event => {
                     trace!("Other event: \r\n{:?}", other_event);
                 }
@@ -225,6 +230,7 @@ async fn main() -> std::io::Result<()> {
                          // patch up solutions
     )
     .unwrap();
+    // let sinfo_clone = sinfo.clone();
 
     mdns.register(sinfo)
         .expect("mDNS: Failed to register our service");
@@ -240,6 +246,7 @@ async fn main() -> std::io::Result<()> {
     discover_hosts(&mdns, peers).await?;
 
     tokio::signal::ctrl_c().await?;
+    mdns.shutdown().unwrap();
 
     Ok(())
 }
