@@ -12,7 +12,6 @@
 //             connection, idk  how it turns out
 // -----------------------------------------------------------------------------
 
-use local_ip_address;
 use mdns_sd::{ServiceDaemon, ServiceEvent, ServiceInfo}; // for mDNS based host discovery
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -89,7 +88,7 @@ async fn handle_unix_sockets(peers: Arc<Mutex<HashMap<String, String>>>) -> std:
                         };
 
                         // crete a mutable data buffer to store the response message and serialize
-                        let mut serialized_response = match serde_json::to_vec(&response) {
+                        let serialized_response = match serde_json::to_vec(&response) {
                             Ok(ser) => ser,
                             Err(e) => {
                                 error!("Error while Serialization: \r\n {}", e);
@@ -97,7 +96,7 @@ async fn handle_unix_sockets(peers: Arc<Mutex<HashMap<String, String>>>) -> std:
                             }
                         };
 
-                        if let Err(e) = stream.write_all(&mut serialized_response).await {
+                        if let Err(e) = stream.write_all(&serialized_response).await {
                             //handle error
                             error!(
                                 "While writing to the output stream of the socket connection: \r\n{e}"
@@ -107,10 +106,7 @@ async fn handle_unix_sockets(peers: Arc<Mutex<HashMap<String, String>>>) -> std:
                     } else if serialised_request.request_type == "discoverHost" {
                         // handle it here later
                         info!("{:?}", serialised_request);
-
                         let locked = peers.lock().await;
-                        // info!("peers: \r\n{:#?}", *locked);
-
                         // crete a mutable data buffer to store the response message and serialize
                         let serialized_response = match serde_json::to_string(&*locked) {
                             Ok(ser) => ser,
@@ -120,7 +116,8 @@ async fn handle_unix_sockets(peers: Arc<Mutex<HashMap<String, String>>>) -> std:
                             }
                         };
 
-                        if let Err(e) = stream.write_all(&serialized_response.as_bytes()).await {
+                        // if let Err(e) = stream.write_all(&serialized_response.as_bytes()).await {
+                        if let Err(e) = stream.write_all(serialized_response.as_bytes()).await {
                             //handle error
                             error!(
                                 "While writing to the output stream of the socket connection: \r\n{e}"
@@ -144,11 +141,13 @@ async fn handle_unix_sockets(peers: Arc<Mutex<HashMap<String, String>>>) -> std:
 async fn discover_hosts(
     mdns: &ServiceDaemon,
     peers: Arc<Mutex<HashMap<String, String>>>,
+    self_fullname: String,
 ) -> std::io::Result<()> {
     let mdns_receiver = mdns.browse(MDNS_SERVICE_TYPE).unwrap();
     std::thread::spawn(move || {
         while let Ok(event) = mdns_receiver.recv() {
             match event {
+                // log and handle if peer is discovered
                 ServiceEvent::ServiceResolved(serv_resolved) => {
                     info!("Service resolved: {}", serv_resolved.get_hostname());
                     let ip_str = serv_resolved
@@ -159,14 +158,22 @@ async fn discover_hosts(
                         .join(", ");
 
                     let key = serv_resolved.get_fullname().to_string();
+                    // skip our own service
+                    if serv_resolved.get_fullname().to_string() == *self_fullname {
+                        continue;
+                    }
+                    // add to discovered peers list
                     peers.blocking_lock().insert(key, ip_str);
                 }
 
+                // log if peer is being shutdown
                 ServiceEvent::ServiceRemoved(_, fullname) => {
                     info!("Service removed: {}", fullname);
+                    // remove from discovered peers list
                     peers.blocking_lock().remove(&fullname);
                 }
 
+                // log if self is being shutdown
                 ServiceEvent::SearchStopped(ty_domain) => {
                     info!("mDNS search stopped for: {}", ty_domain);
                     break;
@@ -249,12 +256,11 @@ async fn main() -> std::io::Result<()> {
                          // patch up solutions
     )
     .unwrap();
-    // let sinfo_clone = sinfo.clone();
-
+    let fullname = sinfo.get_fullname().to_string();
     mdns.register(sinfo)
         .expect("mDNS: Failed to register our service");
 
-    let peers_clone = Arc::clone(&peers);
+    let peers_clone = Arc::clone(&peers); // clone to use this in async below
     tokio::spawn(async move {
         handle_unix_sockets(peers_clone)
             .await
@@ -262,12 +268,14 @@ async fn main() -> std::io::Result<()> {
     }); // concurrently run unix sockets?? ig so
 
     // first time using async rust btw
-    discover_hosts(&mdns, peers).await?;
+    discover_hosts(&mdns, peers, fullname.clone()).await?;
 
     tokio::signal::ctrl_c().await?;
-    mdns.shutdown().unwrap();
+    let _ = mdns.unregister(&fullname); // unnecessary but meh whatever
+    mdns.shutdown().unwrap(); // shutdown already unregisters
 
     match std::fs::remove_file(SOCKET_BIND_PATH) {
+        //cleanup socket files
         Ok(()) => info!("Removed socket file"),
         Err(e) if e.kind() == ErrorKind::NotFound => {}
         Err(e) => error!("Failed to remove socket file: {}", e),
