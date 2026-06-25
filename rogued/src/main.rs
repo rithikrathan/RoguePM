@@ -30,7 +30,7 @@ static MDNS_SERVICE_TYPE: &str = "_rogued._tcp.local.";
 // =-=-=-=-=-=-=-= [ STRUCTS ] =-=-=-=-=-=-=-=
 
 #[derive(Deserialize, Debug)]
-struct Request {
+struct USRequest {
     request_type: String,
 }
 
@@ -62,7 +62,7 @@ async fn handle_unix_sockets(peers: Arc<Mutex<HashMap<String, String>>>) -> std:
             Ok((mut stream, _addr)) => {
                 let peers = Arc::clone(&peers);
                 tokio::spawn(async move {
-                    info!("Socket connected");
+                    info!("Unix Socket connected");
                     // crete a mutable data buffer to store the incomming message
                     //spawn a process here for concurrency
                     let mut input_data = Vec::new();
@@ -74,7 +74,7 @@ async fn handle_unix_sockets(peers: Arc<Mutex<HashMap<String, String>>>) -> std:
                         );
                     }
                     // handle errors later
-                    let serialised_request: Request = match serde_json::from_slice(&input_data) {
+                    let serialised_request: USRequest = match serde_json::from_slice(&input_data) {
                         Ok(ser) => ser,
                         Err(e) => {
                             error!("Error while Deserialization: \r\n {}", e);
