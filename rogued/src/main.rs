@@ -22,7 +22,7 @@ use std::sync::Arc;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::UnixListener;
 use tokio::sync::Mutex; // for serializations
-use tracing::{Level, error, info, trace}; // from unix socket
+use tracing::{Level, error, info}; // from unix socket
 
 static SOCKET_BIND_PATH: &str = "/tmp/rogued.sock";
 static MDNS_SERVICE_TYPE: &str = "_rogued._tcp.local.";
@@ -140,19 +140,21 @@ async fn discover_hosts(
                         .collect::<Vec<_>>()
                         .join(", ");
 
-                    peers
-                        .blocking_lock()
-                        .insert(serv_resolved.get_hostname().to_string(), ip_str);
+                    let key = serv_resolved.get_fullname().to_string();
+                    peers.blocking_lock().insert(key, ip_str);
                 }
 
                 ServiceEvent::ServiceRemoved(_, fullname) => {
-                    info!("Service reremoved: {}", fullname);
+                    info!("Service removed: {}", fullname);
                     peers.blocking_lock().remove(&fullname);
                 }
 
-                other_event => {
-                    trace!("Other event: \r\n{:?}", other_event);
+                ServiceEvent::SearchStopped(ty_domain) => {
+                    info!("mDNS search stopped for: {}", ty_domain);
+                    break;
                 }
+
+                _ => {}
             }
         }
         println!("{:?}", peers);
@@ -247,6 +249,12 @@ async fn main() -> std::io::Result<()> {
 
     tokio::signal::ctrl_c().await?;
     mdns.shutdown().unwrap();
+
+    match std::fs::remove_file(SOCKET_BIND_PATH) {
+        Ok(()) => info!("Removed socket file"),
+        Err(e) if e.kind() == ErrorKind::NotFound => {}
+        Err(e) => error!("Failed to remove socket file: {}", e),
+    }
 
     Ok(())
 }
