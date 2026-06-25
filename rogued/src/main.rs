@@ -12,7 +12,6 @@
 //             connection, idk  how it turns out
 // -----------------------------------------------------------------------------
 
-use core::result::Result::Ok;
 use local_ip_address;
 use mdns_sd::{ServiceDaemon, ServiceEvent, ServiceInfo}; // for mDNS based host discovery
 use serde::{Deserialize, Serialize};
@@ -51,7 +50,7 @@ async fn handle_unix_sockets(peers: Arc<Mutex<HashMap<String, String>>>) -> std:
         Ok(l) => l,
         Err(e) => {
             error!("Owned by skill issue, \r\nError: {}", e);
-            return Ok(());
+            return Err(e);
         }
     };
 
@@ -84,7 +83,7 @@ async fn handle_unix_sockets(peers: Arc<Mutex<HashMap<String, String>>>) -> std:
 
                     // process requests here
                     if serialised_request.request_type == "ping" {
-                        println!("{:?}", serialised_request);
+                        info!("{:?}", serialised_request);
                         let response = Response {
                             res: "Pong!".to_string(),
                         };
@@ -104,15 +103,34 @@ async fn handle_unix_sockets(peers: Arc<Mutex<HashMap<String, String>>>) -> std:
                                 "While writing to the output stream of the socket connection: \r\n{e}"
                             );
                         }
+                        return;
                     } else if serialised_request.request_type == "discoverHost" {
                         // handle it here later
-                        println!("{:?}", serialised_request);
+                        info!("{:?}", serialised_request);
+
                         let locked = peers.lock().await;
-                        println!("peers: \r\n{:#?}", *locked);
+                        // info!("peers: \r\n{:#?}", *locked);
+
+                        // crete a mutable data buffer to store the response message and serialize
+                        let serialized_response = match serde_json::to_string(&*locked) {
+                            Ok(ser) => ser,
+                            Err(e) => {
+                                error!("Error while Serialization: \r\n {}", e);
+                                return;
+                            }
+                        };
+
+                        if let Err(e) = stream.write_all(&serialized_response.as_bytes()).await {
+                            //handle error
+                            error!(
+                                "While writing to the output stream of the socket connection: \r\n{e}"
+                            );
+                        }
                         return;
                     } else {
                         // Anything other than the above types of request
-                        println!("Something phishy... \r\n{:#?}", serialised_request);
+                        error!("Something phishy... \r\n{:#?}", serialised_request);
+                        return;
                     }
                 });
             }
@@ -157,7 +175,6 @@ async fn discover_hosts(
                 _ => {}
             }
         }
-        println!("{:?}", peers);
     });
     Ok(())
 }
@@ -225,7 +242,7 @@ async fn main() -> std::io::Result<()> {
     let sinfo = ServiceInfo::new(
         MDNS_SERVICE_TYPE,             // service type
         &hostname,                     // instance name
-        &format!("{hostname}.local."), // host nanme in the context of a DNS
+        &format!("{hostname}.local."), // host name in the context of a DNS
         ip,                            // local IP address
         5200,                          // port it runs on
         &properties[..], // dummmy properties, ATP I just turned off my brain for thinking and use quick
