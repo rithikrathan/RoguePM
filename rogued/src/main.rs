@@ -22,7 +22,7 @@ use std::sync::Arc;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::UnixListener;
 use tokio::sync::Mutex; // for serializations
-use tracing::{Level, error, info}; // from unix socket
+use tracing::{Level, error, info, trace}; // from unix socket
 
 static SOCKET_BIND_PATH: &str = "/tmp/rogued.sock";
 static MDNS_SERVICE_TYPE: &str = "_rogued._tcp.local.";
@@ -145,7 +145,7 @@ async fn discover_hosts(
                 }
 
                 other_event => {
-                    info!("Other event: \r\n{:?}", other_event);
+                    trace!("Other event: \r\n{:?}", other_event);
                 }
             }
         }
@@ -181,7 +181,7 @@ async fn main() -> std::io::Result<()> {
 
     // To display logs on the standard IO
     tracing_subscriber::fmt()
-        .with_max_level(Level::TRACE)
+        .with_max_level(Level::INFO)
         .init();
 
     // remove old Socket Files if it exists
@@ -239,6 +239,8 @@ async fn main() -> std::io::Result<()> {
 
     // first time using async rust btw
     discover_hosts(&mdns, peers).await?;
+
+    tokio::signal::ctrl_c().await?;
 
     Ok(())
 }
