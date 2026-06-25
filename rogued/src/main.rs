@@ -25,7 +25,7 @@ use tokio::sync::Mutex; // for serializations
 use tracing::{Level, error, info}; // from unix socket
 
 static SOCKET_BIND_PATH: &str = "/tmp/rogued.sock";
-static MDNS_SERVICE_TYPE: &str = "_rogued._tcp.local";
+static MDNS_SERVICE_TYPE: &str = "_rogued._tcp.local.";
 
 // =-=-=-=-=-=-=-= [ STRUCTS ] =-=-=-=-=-=-=-=
 
