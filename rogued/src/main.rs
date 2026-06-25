@@ -44,7 +44,8 @@ struct Response {
 // UNIXSOCKETS are the way our rogue script interacts witht he daemon, to handle tcp connections and
 // exchange project list, This connection is between the daemon and the rogue script, that happens
 // locally via a shared file
-async fn handle_unix_sockets(peers: &Arc<Mutex<HashMap<String, String>>>) -> std::io::Result<()> {
+// async fn handle_unix_sockets(peers: &Arc<Mutex<HashMap<String, String>>>) -> std::io::Result<()> {
+async fn handle_unix_sockets(peers: Arc<Mutex<HashMap<String, String>>>) -> std::io::Result<()> {
     // bind a listener to that socket file and handle the errors
     let listener = match UnixListener::bind(SOCKET_BIND_PATH) {
         Ok(l) => l,
@@ -231,7 +232,7 @@ async fn main() -> std::io::Result<()> {
 
     let peers_clone = Arc::clone(&peers);
     tokio::spawn(async move {
-        handle_unix_sockets(&peers_clone)
+        handle_unix_sockets(peers_clone)
             .await
             .expect("Owned by skill issue,\r\nError with the unix sockets function");
     }); // concurrently run unix sockets?? ig so
