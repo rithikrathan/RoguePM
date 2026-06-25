@@ -84,7 +84,7 @@ async fn handle_unix_sockets(peers: Arc<Mutex<HashMap<String, String>>>) -> std:
 
                     // process requests here
                     if serialised_request.request_type == "ping" {
-                        println!("{:#?}", serialised_request);
+                        println!("{:?}", serialised_request);
                         let response = Response {
                             res: "Pong!".to_string(),
                         };
@@ -106,8 +106,9 @@ async fn handle_unix_sockets(peers: Arc<Mutex<HashMap<String, String>>>) -> std:
                         }
                     } else if serialised_request.request_type == "discoverHost" {
                         // handle it here later
+                        println!("{:?}", serialised_request);
                         let locked = peers.lock().await;
-                        println!("peers: \r\n {:?}", *locked);
+                        println!("peers: \r\n{:#?}", *locked);
                         return;
                     } else {
                         // Anything other than the above types of request
@@ -131,7 +132,7 @@ async fn discover_hosts(
         while let Ok(event) = mdns_receiver.recv() {
             match event {
                 ServiceEvent::ServiceResolved(serv_resolved) => {
-                    info!("Service resolved: \r\n{:?}", serv_resolved);
+                    info!("Service resolved: {}", serv_resolved.get_hostname());
                     let ip_str = serv_resolved
                         .get_addresses_v4()
                         .iter()
@@ -180,9 +181,7 @@ async fn main() -> std::io::Result<()> {
     let peers: Arc<Mutex<HashMap<String, String>>> = Arc::new(Mutex::new(HashMap::new()));
 
     // To display logs on the standard IO
-    tracing_subscriber::fmt()
-        .with_max_level(Level::INFO)
-        .init();
+    tracing_subscriber::fmt().with_max_level(Level::INFO).init();
 
     // remove old Socket Files if it exists
     match std::fs::remove_file(SOCKET_BIND_PATH) {
