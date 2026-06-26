@@ -24,6 +24,7 @@ use tracing::{Level, error, info}; // from unix socket
 
 static SOCKET_BIND_PATH: &str = "/tmp/rogued.sock";
 static MDNS_SERVICE_TYPE: &str = "_rogued._tcp.local.";
+static INCLUDE_SELF: bool = true; // include self host name
 
 // =-=-=-=-=-=-=-= [ STRUCTS ] =-=-=-=-=-=-=-=
 
@@ -159,7 +160,7 @@ async fn discover_hosts(
 
                     let key = serv_resolved.get_fullname().to_string();
                     // skip our own service
-                    if serv_resolved.get_fullname().to_string() == *self_fullname {
+                    if serv_resolved.get_fullname().to_string() == *self_fullname && !INCLUDE_SELF {
                         continue;
                     }
                     // add to discovered peers list
