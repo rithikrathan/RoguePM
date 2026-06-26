@@ -71,6 +71,113 @@ cmd_daemon() {
             echo ""
             ;;
 
+        pair)
+            local hostname="$1"
+            if [ -z "$hostname" ]; then
+                rogued_log_error "Usage: rogue daemon pair <hostname>"
+                return 1
+            fi
+            local response
+            response=$(echo '{"request_type":"pair","hostname":"'"$hostname"'"}' | socat - UNIX-CONNECT:"$socketPath" 2>&1) || {
+                rogued_log_error "Daemon not reachable at $socketPath"
+                return 1
+            }
+            local message
+            message=$(echo "$response" | jq -r '.res // empty')
+            if [ -n "$message" ]; then
+                rogued_log_info "$message"
+            else
+                rogued_log_error "Unexpected response: $response"
+            fi
+            ;;
+
+        accept)
+            local hostname="$1"
+            if [ -z "$hostname" ]; then
+                rogued_log_error "Usage: rogue daemon accept <hostname>"
+                return 1
+            fi
+            local response
+            response=$(echo '{"request_type":"accept","hostname":"'"$hostname"'"}' | socat - UNIX-CONNECT:"$socketPath" 2>&1) || {
+                rogued_log_error "Daemon not reachable at $socketPath"
+                return 1
+            }
+            local message
+            message=$(echo "$response" | jq -r '.res // empty')
+            if [ -n "$message" ]; then
+                rogued_log_info "$message"
+            else
+                rogued_log_error "Unexpected response: $response"
+            fi
+            ;;
+
+        reject)
+            local hostname="$1"
+            if [ -z "$hostname" ]; then
+                rogued_log_error "Usage: rogue daemon reject <hostname>"
+                return 1
+            fi
+            local response
+            response=$(echo '{"request_type":"reject","hostname":"'"$hostname"'"}' | socat - UNIX-CONNECT:"$socketPath" 2>&1) || {
+                rogued_log_error "Daemon not reachable at $socketPath"
+                return 1
+            }
+            local message
+            message=$(echo "$response" | jq -r '.res // empty')
+            if [ -n "$message" ]; then
+                rogued_log_info "$message"
+            else
+                rogued_log_error "Unexpected response: $response"
+            fi
+            ;;
+
+        forget)
+            local hostname="$1"
+            if [ -z "$hostname" ]; then
+                rogued_log_error "Usage: rogue daemon forget <hostname>"
+                return 1
+            fi
+            local response
+            response=$(echo '{"request_type":"forget","hostname":"'"$hostname"'"}' | socat - UNIX-CONNECT:"$socketPath" 2>&1) || {
+                rogued_log_error "Daemon not reachable at $socketPath"
+                return 1
+            }
+            local message
+            message=$(echo "$response" | jq -r '.res // empty')
+            if [ -n "$message" ]; then
+                rogued_log_info "$message"
+            else
+                rogued_log_error "Unexpected response: $response"
+            fi
+            ;;
+
+        pending)
+            local response
+            response=$(echo '{"request_type":"pending"}' | socat - UNIX-CONNECT:"$socketPath" 2>&1) || {
+                rogued_log_error "Daemon not reachable at $socketPath"
+                return 1
+            }
+            local count
+            count=$(echo "$response" | jq '.res | length // 0')
+            if [ -z "$count" ] || [ "$count" -eq 0 ]; then
+                rogued_log_info "No pending pairings."
+                return 0
+            fi
+            echo ""
+            rogued_log_info "Pending Pairings"
+            echo ""
+            echo -e "  ${BOLD}Device ID${RESET}        ${BOLD}Hostname${RESET}           ${BOLD}IP${RESET}"
+            echo "  ─────────────────────────────────────────────────────"
+            echo "$response" | jq -r '
+                .res[]
+                | [.device_id, .hostname, .ip]
+                | @tsv
+            ' | while IFS=$'\t' read -r device_id hostname ip; do
+                printf "  %-20s %-20s %s\n" "$device_id" "$hostname" "$ip"
+            done
+            echo ""
+            ;;
+
         *)
             rogued_log_error "Unknown daemon command: $sub"
             echo -e "Usage: rogue daemon {ping|discover|pair|accept|reject|forget|pending}"
