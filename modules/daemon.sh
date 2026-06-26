@@ -32,66 +32,6 @@ print_daemon_help() {
     echo -e "  ${BOLD}pending${RESET}        List pending pairing requests"
 }
 
-print_daemon_table() {
-    local col_headers=("$@")
-    local col_count=${#col_headers[@]}
-    local col_align=()
-    local data=()
-
-    local reading_data=false
-    local data_start=0
-    for ((i = 0; i < col_count; i++)); do
-        col_align[$i]="l"
-    done
-
-    shift $col_count
-    local rows=("$@")
-    local row_count=${#rows[@]}
-
-    local widths=()
-    for ((c = 0; c < col_count; c++)); do
-        widths[$c]=${#col_headers[$c]}
-    done
-
-    for ((idx = 0; idx < row_count; idx++)); do
-        IFS=$'\t' read -ra vals <<< "${rows[$idx]}"
-        for ((c = 0; c < col_count; c++)); do
-            [ ${#vals[$c]} -gt ${widths[$c]} ] && widths[$c]=${#vals[$c]}
-        done
-    done
-
-    local row_fmt="  "
-    for ((c = 0; c < col_count; c++)); do
-        [ $c -gt 0 ] && row_fmt+=" | "
-        row_fmt+="%b"
-    done
-    row_fmt+="\n"
-
-    local cells=()
-    for ((c = 0; c < col_count; c++)); do
-        cells+=("$(printf "%-*s" "${widths[$c]}" "${col_headers[$c]}")")
-    done
-    printf "$row_fmt" "${cells[@]}"
-
-    local total=0
-    for ((c = 0; c < col_count; c++)); do
-        total=$((total + widths[c]))
-    done
-    total=$((total + (col_count - 1) * 3))
-    printf "  ─"
-    for ((i = 0; i < total; i++)); do printf "─"; done
-    echo ""
-
-    for ((idx = 0; idx < row_count; idx++)); do
-        cells=()
-        IFS=$'\t' read -ra vals <<< "${rows[$idx]}"
-        for ((c = 0; c < col_count; c++)); do
-            cells+=("$(printf "%-*s" "${widths[$c]}" "${vals[$c]}")")
-        done
-        printf "$row_fmt" "${cells[@]}"
-    done
-}
-
 cmd_daemon() {
     local sub="$1"; shift
 
@@ -135,15 +75,68 @@ cmd_daemon() {
             echo ""
             rogued_log_info "Discovered Peers"
             echo ""
-            local rows=()
+
+            local hostnames=() ips=()
             while IFS=$'\t' read -r hostname ip; do
-                rows+=("$hostname"$'\t'"$ip")
+                hostnames+=("$hostname")
+                ips+=("$ip")
             done < <(echo "$response" | jq -r '
                 to_entries[]
                 | [ (.key | split(".")[0]), .value ]
                 | @tsv
             ')
-            print_daemon_table "Peer" "IP" "${rows[@]}"
+            local count=${#hostnames[@]}
+
+            local col_headers=("Peer" "IP")
+            local col_align=("l" "l")
+            local col_count=2
+            local widths=()
+            for ((c = 0; c < col_count; c++)); do
+                widths[$c]=${#col_headers[$c]}
+            done
+            for ((idx = 0; idx < count; idx++)); do
+                [ ${#hostnames[$idx]} -gt ${widths[0]} ] && widths[0]=${#hostnames[$idx]}
+                [ ${#ips[$idx]} -gt ${widths[1]} ] && widths[1]=${#ips[$idx]}
+            done
+
+            local row_fmt="  "
+            for ((c = 0; c < col_count; c++)); do
+                [ $c -gt 0 ] && row_fmt+=" | "
+                row_fmt+="%b"
+            done
+            row_fmt+="\n"
+
+            local cells=()
+            for ((c = 0; c < col_count; c++)); do
+                local val=""
+                if [ "${col_align[$c]}" = "r" ]; then
+                    val=$(printf "%*s" "${widths[$c]}" "${col_headers[$c]}")
+                else
+                    val=$(printf "%-*s" "${widths[$c]}" "${col_headers[$c]}")
+                fi
+                cells+=("$val")
+            done
+            printf "$row_fmt" "${cells[@]}"
+
+            local total=0
+            for ((c = 0; c < col_count; c++)); do
+                total=$((total + widths[c]))
+            done
+            total=$((total + (col_count - 1) * 3))
+            printf "  ─"
+            for ((i = 0; i < total; i++)); do printf "─"; done
+            echo ""
+
+            for ((idx = 0; idx < count; idx++)); do
+                cells=()
+                for ((c = 0; c < col_count; c++)); do
+                    case $c in
+                        0) cells+=("$(printf "%-*s" "${widths[0]}" "${hostnames[$idx]}")") ;;
+                        1) cells+=("$(printf "%-*s" "${widths[1]}" "${ips[$idx]}")") ;;
+                    esac
+                done
+                printf "$row_fmt" "${cells[@]}"
+            done
             echo ""
             ;;
 
@@ -242,15 +235,71 @@ cmd_daemon() {
             echo ""
             rogued_log_info "Pending Pairings"
             echo ""
-            local rows=()
+
+            local device_ids=() hostnames=() ips=()
             while IFS=$'\t' read -r device_id hostname ip; do
-                rows+=("$device_id"$'\t'"$hostname"$'\t'"$ip")
+                device_ids+=("$device_id")
+                hostnames+=("$hostname")
+                ips+=("$ip")
             done < <(echo "$response" | jq -r '
                 .res[]
                 | [.device_id, .hostname, .ip]
                 | @tsv
             ')
-            print_daemon_table "Device ID" "Hostname" "IP" "${rows[@]}"
+            local count=${#device_ids[@]}
+
+            local col_headers=("Device ID" "Hostname" "IP")
+            local col_align=("l" "l" "l")
+            local col_count=3
+            local widths=()
+            for ((c = 0; c < col_count; c++)); do
+                widths[$c]=${#col_headers[$c]}
+            done
+            for ((idx = 0; idx < count; idx++)); do
+                [ ${#device_ids[$idx]} -gt ${widths[0]} ] && widths[0]=${#device_ids[$idx]}
+                [ ${#hostnames[$idx]} -gt ${widths[1]} ] && widths[1]=${#hostnames[$idx]}
+                [ ${#ips[$idx]} -gt ${widths[2]} ] && widths[2]=${#ips[$idx]}
+            done
+
+            local row_fmt="  "
+            for ((c = 0; c < col_count; c++)); do
+                [ $c -gt 0 ] && row_fmt+=" | "
+                row_fmt+="%b"
+            done
+            row_fmt+="\n"
+
+            local cells=()
+            for ((c = 0; c < col_count; c++)); do
+                local val=""
+                if [ "${col_align[$c]}" = "r" ]; then
+                    val=$(printf "%*s" "${widths[$c]}" "${col_headers[$c]}")
+                else
+                    val=$(printf "%-*s" "${widths[$c]}" "${col_headers[$c]}")
+                fi
+                cells+=("$val")
+            done
+            printf "$row_fmt" "${cells[@]}"
+
+            local total=0
+            for ((c = 0; c < col_count; c++)); do
+                total=$((total + widths[c]))
+            done
+            total=$((total + (col_count - 1) * 3))
+            printf "  ─"
+            for ((i = 0; i < total; i++)); do printf "─"; done
+            echo ""
+
+            for ((idx = 0; idx < count; idx++)); do
+                cells=()
+                for ((c = 0; c < col_count; c++)); do
+                    case $c in
+                        0) cells+=("$(printf "%-*s" "${widths[0]}" "${device_ids[$idx]}")") ;;
+                        1) cells+=("$(printf "%-*s" "${widths[1]}" "${hostnames[$idx]}")") ;;
+                        2) cells+=("$(printf "%-*s" "${widths[2]}" "${ips[$idx]}")") ;;
+                    esac
+                done
+                printf "$row_fmt" "${cells[@]}"
+            done
             echo ""
             ;;
 
