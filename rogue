@@ -82,6 +82,7 @@ print_help() {
     echo -e "  ${BOLD}template${RESET}     List templates or view template file tree"
     echo -e "  ${BOLD}list${RESET}         List all projects with branch, status, and last commit"
     echo -e "  ${BOLD}open${RESET}         Open a project directory using fzf/rofi"
+    echo -e "  ${BOLD}daemon${RESET}       Talk to the rogued background daemon"
     echo -e "  ${BOLD}setPat${RESET}       Embeds \$GHPAT/\$GLPAT into all HTTPS git remote URLs"
     echo -e "  ${BOLD}addRemote${RESET}    Creates and adds a specified remote (github/gitlab)"
     echo -e "  ${BOLD}setup${RESET}        Install RoguePM to ~/.local/bin and ~/.config/rogue"
@@ -420,6 +421,7 @@ gh|GitHub CLI (gh)|GitHub remotes will not work in new, addRemote.
 glab|GitLab CLI (glab)|GitLab remotes will not work in new, addRemote.
 fzf|fzf|Template picker, open menu, and session subdir selection won't work.
 jq|jq|JSON config (rogueConf.json) will not be read.
+socat|socat|Daemon communication (rogue daemon) will not work.
 tree|tree|Directory tree display after template creation will be skipped.
 rsync|rsync|File copying during setup may fall back to cp.
 DEPS

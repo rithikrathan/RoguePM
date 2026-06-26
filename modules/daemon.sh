@@ -20,12 +20,88 @@ rogued_log_step() {
     echo -e "  ${ROGUE_RED_SOLID}◆${RESET} $1"
 }
 
+print_daemon_help() {
+    echo -e "\n${ROGUE_RED_ITALIC}[Rogue]${RESET} ${BOLD}DAEMON COMMAND USAGE${RESET}"
+    echo -e "source rogue daemon [action]\n"
+    echo -e "  ${BOLD}ping${RESET}           Check if daemon is running"
+    echo -e "  ${BOLD}discover${RESET}       List mDNS-discovered peers"
+    echo -e "  ${BOLD}pair <host>${RESET}    Initiate pairing with a peer"
+    echo -e "  ${BOLD}accept <host>${RESET}  Accept a pending pairing request"
+    echo -e "  ${BOLD}reject <host>${RESET}  Reject a pending pairing request"
+    echo -e "  ${BOLD}forget <host>${RESET}  Remove a paired peer"
+    echo -e "  ${BOLD}pending${RESET}        List pending pairing requests"
+}
+
+print_daemon_table() {
+    local col_headers=("$@")
+    local col_count=${#col_headers[@]}
+    local col_align=()
+    local data=()
+
+    local reading_data=false
+    local data_start=0
+    for ((i = 0; i < col_count; i++)); do
+        col_align[$i]="l"
+    done
+
+    shift $col_count
+    local rows=("$@")
+    local row_count=${#rows[@]}
+
+    local widths=()
+    for ((c = 0; c < col_count; c++)); do
+        widths[$c]=${#col_headers[$c]}
+    done
+
+    for ((idx = 0; idx < row_count; idx++)); do
+        IFS=$'\t' read -ra vals <<< "${rows[$idx]}"
+        for ((c = 0; c < col_count; c++)); do
+            [ ${#vals[$c]} -gt ${widths[$c]} ] && widths[$c]=${#vals[$c]}
+        done
+    done
+
+    local row_fmt="  "
+    for ((c = 0; c < col_count; c++)); do
+        [ $c -gt 0 ] && row_fmt+=" | "
+        row_fmt+="%b"
+    done
+    row_fmt+="\n"
+
+    local cells=()
+    for ((c = 0; c < col_count; c++)); do
+        cells+=("$(printf "%-*s" "${widths[$c]}" "${col_headers[$c]}")")
+    done
+    printf "$row_fmt" "${cells[@]}"
+
+    local total=0
+    for ((c = 0; c < col_count; c++)); do
+        total=$((total + widths[c]))
+    done
+    total=$((total + (col_count - 1) * 3))
+    printf "  ─"
+    for ((i = 0; i < total; i++)); do printf "─"; done
+    echo ""
+
+    for ((idx = 0; idx < row_count; idx++)); do
+        cells=()
+        IFS=$'\t' read -ra vals <<< "${rows[$idx]}"
+        for ((c = 0; c < col_count; c++)); do
+            cells+=("$(printf "%-*s" "${widths[$c]}" "${vals[$c]}")")
+        done
+        printf "$row_fmt" "${cells[@]}"
+    done
+}
+
 cmd_daemon() {
     local sub="$1"; shift
 
     case "$sub" in
+        --help|-h)
+            print_daemon_help
+            ;;
+
         "")
-            echo -e "Usage: rogue daemon {ping|discover|pair|accept|reject|forget|pending}"
+            print_daemon_help
             return 0
             ;;
 
@@ -59,15 +135,15 @@ cmd_daemon() {
             echo ""
             rogued_log_info "Discovered Peers"
             echo ""
-            echo -e "  ${BOLD}Peer${RESET}                     ${BOLD}IP${RESET}"
-            echo "  ─────────────────────────────────────"
-            echo "$response" | jq -r '
+            local rows=()
+            while IFS=$'\t' read -r hostname ip; do
+                rows+=("$hostname"$'\t'"$ip")
+            done < <(echo "$response" | jq -r '
                 to_entries[]
                 | [ (.key | split(".")[0]), .value ]
                 | @tsv
-            ' | while IFS=$'\t' read -r hostname ip; do
-                printf "  %-25s %s\n" "$hostname" "$ip"
-            done
+            ')
+            print_daemon_table "Peer" "IP" "${rows[@]}"
             echo ""
             ;;
 
@@ -166,21 +242,21 @@ cmd_daemon() {
             echo ""
             rogued_log_info "Pending Pairings"
             echo ""
-            echo -e "  ${BOLD}Device ID${RESET}        ${BOLD}Hostname${RESET}           ${BOLD}IP${RESET}"
-            echo "  ─────────────────────────────────────────────────────"
-            echo "$response" | jq -r '
+            local rows=()
+            while IFS=$'\t' read -r device_id hostname ip; do
+                rows+=("$device_id"$'\t'"$hostname"$'\t'"$ip")
+            done < <(echo "$response" | jq -r '
                 .res[]
                 | [.device_id, .hostname, .ip]
                 | @tsv
-            ' | while IFS=$'\t' read -r device_id hostname ip; do
-                printf "  %-20s %-20s %s\n" "$device_id" "$hostname" "$ip"
-            done
+            ')
+            print_daemon_table "Device ID" "Hostname" "IP" "${rows[@]}"
             echo ""
             ;;
 
         *)
             rogued_log_error "Unknown daemon command: $sub"
-            echo -e "Usage: rogue daemon {ping|discover|pair|accept|reject|forget|pending}"
+            echo -e "  Run ${BOLD}rogue daemon --help${RESET} for usage."
             return 1
             ;;
     esac
