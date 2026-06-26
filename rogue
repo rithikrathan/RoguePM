@@ -472,6 +472,9 @@ main() {
         list) cmd_list "$@" ;;
 
         open) cmd_open "$@" ;;
+
+        daemon) cmd_daemon "$@" ;;
+
         --version|-v) log_info "RoguePM v${VERSION}" ;;
         --help|-h|help) print_help ;;
 
