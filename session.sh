@@ -28,10 +28,10 @@ tmux send-keys -t "$SESSION:superfile" "spf" C-m
 # tmux send-keys -t "$SESSION:docs" "rdocs rust" C-m
 
 # opencode window (opencode left 69%, terminal right 31%)
-tmux new-window -t "$SESSION" -n "opencode" -c "$BASE_DIR"
-tmux send-keys -t "$SESSION:opencode" "opencode" C-m
-tmux split-window -h -t "$SESSION:opencode" -p 31 -c "$ROGUED_DIR"
-tmux send-keys -t "$SESSION:opencode.2" "clear" C-m
+# tmux new-window -t "$SESSION" -n "opencode" -c "$BASE_DIR"
+# tmux send-keys -t "$SESSION:opencode" "opencode" C-m
+# tmux split-window -h -t "$SESSION:opencode" -p 31 -c "$ROGUED_DIR"
+# tmux send-keys -t "$SESSION:opencode.2" "clear" C-m
 
 tmux select-window -t "$SESSION:editor"
 tmux attach-session -t "$SESSION"

@@ -38,12 +38,37 @@ Two daemon instances discover each other via mDNS. Each prints/logs the peer's h
     didnt actually follow this todo but it was a good guideline, i just went with the flow after 2.5 lol, ig i implemented this all idk
 
 ## Hello World 3: TCP Handshake + Identity
-Discovered peers establish a TCP connection and exchange identity packets (device_id, hostname).
-- Proves: P2P TCP works, identity exchange works
+Discovered peers establish a TCP connection and exchange identity packets (device_id, hostname). Pending pairings are stored in-memory; accepted pairings persist in sled.
+- Proves: P2P TCP works, identity exchange works, pairing flow works, persistence works
+
+    - [ ] 3.1 Parse CLI args (`clap::Parser`): `--port`, `--socket-path`, `--data-dir`
+    - [ ] 3.2 Init sled DB at data-dir path, generate/load `device_id` via `init_identity()`
+    - [ ] 3.3 Load paired peers from sled into `Arc<Mutex<HashMap>>` on startup
+    - [ ] 3.4 Spawn TCP listener on `--port`, log connections, spawn per-connection handler
+    - [ ] 3.5 Implement `tcp_dial()`: connect, send JSON+`\n`, read response line, parse
+    - [ ] 3.6 Handle incoming `pair_request` → store in pending map, reply `pair_pending`
+    - [ ] 3.7 Handle incoming `pair_accept` → move from pending to paired + sled, reply `pair_ack`
+    - [ ] 3.8 Handle incoming `pair_ack` → store in paired + sled
+    - [ ] 3.9 Handle incoming `pair_reject` → remove from pending
+    - [ ] 3.10 Extend UNIX socket handler: `USRequest` gains optional `hostname` field
+    - [ ] 3.11 Implement `pair` UNIX command → `tcp_dial(pair_request)`, respond status
+    - [ ] 3.12 Implement `accept` UNIX command → `tcp_dial(pair_accept)`, wait `pair_ack`, persist
+    - [ ] 3.13 Implement `reject` / `forget` / `pending` UNIX commands
+    - [ ] 3.14 Enhanced `discoverHost` response: return discovered + paired + pending
+    - [ ] 3.15 Edge cases: self-pair check, 5s TCP timeout, re-pair, stale pending cleanup
 
 ## Hello World 4: TLS Pairing
-Identity packets include self-signed TLS certs. Peers pin each other's certs (TOFU).
-- Proves: TLS encryption works, trust-on-first-use works
+Daemon generates a self-signed TLS certificate on startup. All TCP communication between paired peers is wrapped in TLS. On first pair, peers pin each other's cert fingerprint (TOFU). Future connections verify the pinned fingerprint.
+- Proves: TLS encryption works, trust-on-first-use works, cert pinning persists across restarts
+
+    - [ ] 4.1 Generate self-signed cert + key on startup with `rcgen`. Store key + cert in sled under `my_identity` alongside device_id. If sled already has a cert, load and reuse instead of regenerating each time.
+    - [ ] 4.2 Configure `rustls::ServerConfig` with the generated cert + key. Configure `rustls::ClientConfig` that skips standard CA verification (we use our own pinning).
+    - [ ] 4.3 Wrap the TCP listener in `tokio_rustls::TlsAcceptor(server_config)`. Accept calls now produce `TlsStream` instead of raw `TcpStream`.
+    - [ ] 4.4 Wrap `tcp_dial()` to return a `TlsStream` using `tokio_rustls::TlsConnector(client_config)` before sending/receiving JSON.
+    - [ ] 4.5 On first successful TLS handshake with a peer, extract their certificate from the session. Hash the DER-encoded cert (SHA-256) to get a fingerprint. Store it in sled under `paired/{device_id}.cert_fingerprint`.
+    - [ ] 4.6 On subsequent connections to an already-paired peer, after the TLS handshake, extract the peer's cert fingerprint and compare against the pinned value. Reject the connection if they don't match (MITM detection).
+    - [ ] 4.7 Add `cert_fingerprint: String` field to `PairedPeer`. Update `save_paired_peer` and `load_paired_peers` to handle the new field (backward-compatible: default to empty string if missing).
+    - [ ] 4.8 Edge cases: lost cert (regenerate, peer will detect mismatch and re-pair), cert expiry (self-signed, set 10yr expiry), TOFU on re-pair (accept new fingerprint after explicit `forget` + `pair`).
 
 ## Hello World 5: SSH Key Exchange
 Daemon generates ed25519 keypair. During pairing, peers exchange SSH pubkeys.
