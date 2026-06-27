@@ -13,7 +13,6 @@
 // -----------------------------------------------------------------------------
 
 use mdns_sd::{ServiceDaemon, ServiceEvent, ServiceInfo}; // for mDNS based host discovery
-use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::io::ErrorKind;
 use std::sync::Arc;
@@ -22,21 +21,15 @@ use tokio::net::UnixListener;
 use tokio::sync::Mutex; // for serializations
 use tracing::{Level, error, info}; // from unix socket
 
+mod types;
+use types::{Response, USRequest};
+
+mod db;
+
 static SOCKET_BIND_PATH: &str = "/tmp/rogued.sock";
 static MDNS_SERVICE_TYPE: &str = "_rogued._tcp.local.";
 static INCLUDE_SELF: bool = true; // include self host name
-
-// =-=-=-=-=-=-=-= [ STRUCTS ] =-=-=-=-=-=-=-=
-
-#[derive(Deserialize, Debug)]
-struct USRequest {
-    request_type: String,
-}
-
-#[derive(Serialize, Debug)]
-struct Response {
-    res: String,
-}
+static TCP_PORT: u16 = 5200;
 
 // =-=-=-=-=-=-=-= [ HELPER FUNCTIONS ] =-=-=-=-=-=-=-=
 
@@ -139,6 +132,10 @@ async fn handle_unix_sockets(peers: Arc<Mutex<HashMap<String, String>>>) -> std:
     }
 }
 
+// async fn handle_database() {
+//     let db: Db = open("rogueData").unwrap();
+// }
+
 async fn discover_hosts(
     mdns: &ServiceDaemon,
     peers: Arc<Mutex<HashMap<String, String>>>,
@@ -193,14 +190,20 @@ async fn discover_hosts(
 async fn main() -> std::io::Result<()> {
     println!("Hello Idiots!"); // mandatory insult
 
+    // first time using async rust btw
+    tracing_subscriber::fmt().with_max_level(Level::INFO).init(); // To display logs on the standard IO
+
+    // =-=-=-=-=-=-=-= [ DEFINITIONS ] =-=-=-=-=-=-=-=
+
+    // hashmap of hostname => ipaddress string
+    let peers: Arc<Mutex<HashMap<String, String>>> = Arc::new(Mutex::new(HashMap::new()));
+    let hostname: String = gethostname::gethostname().to_string_lossy().to_string();
+
     // dummmy property
     let properties = [
         ("not_even_closee", "baby"),
         ("technoblade", "never_dies!!!!"),
     ];
-
-    // some variables
-    let hostname: String = gethostname::gethostname().to_string_lossy().to_string();
 
     let ip: String = match local_ip_address::local_ip() {
         Ok(ip) => ip.to_string(),
@@ -209,11 +212,22 @@ async fn main() -> std::io::Result<()> {
             return Ok(());
         }
     };
-    // hashmap of hostname => ipaddress string
-    let peers: Arc<Mutex<HashMap<String, String>>> = Arc::new(Mutex::new(HashMap::new()));
 
-    // To display logs on the standard IO
-    tracing_subscriber::fmt().with_max_level(Level::INFO).init();
+    //service info struct that will be exchanged
+    let sinfo = ServiceInfo::new(
+        MDNS_SERVICE_TYPE,             // service type
+        &hostname,                     // instance name
+        &format!("{hostname}.local."), // host name in the context of a DNS
+        ip,                            // local IP address
+        TCP_PORT,                      // port it runs on
+        &properties[..], // dummmy properties, ATP I just turned off my brain for thinking and use quick
+                         // patch up solutions
+    )
+    .unwrap();
+
+    let fullname = sinfo.get_fullname().to_string();
+
+    // =-=-=-=-=-=-=-= [ PROCESS ] =-=-=-=-=-=-=-=
 
     // remove old Socket Files if it exists
     match std::fs::remove_file(SOCKET_BIND_PATH) {
@@ -232,7 +246,8 @@ async fn main() -> std::io::Result<()> {
 
     // create an mdns daemon object to run in a separate thread
     let mdns = ServiceDaemon::new().expect("Problem when starting mDNS daemon");
-
+    mdns.register(sinfo)
+        .expect("mDNS: Failed to register our service");
     // handle mDNS daemon errors
     let de_receiver = mdns.monitor().expect("Failed to monitor mDNS daemon");
     std::thread::spawn(move || {
@@ -246,21 +261,7 @@ async fn main() -> std::io::Result<()> {
         }
     });
 
-    //service info struct that will be exchanged
-    let sinfo = ServiceInfo::new(
-        MDNS_SERVICE_TYPE,             // service type
-        &hostname,                     // instance name
-        &format!("{hostname}.local."), // host name in the context of a DNS
-        ip,                            // local IP address
-        5200,                          // port it runs on
-        &properties[..], // dummmy properties, ATP I just turned off my brain for thinking and use quick
-                         // patch up solutions
-    )
-    .unwrap();
-    let fullname = sinfo.get_fullname().to_string();
-    mdns.register(sinfo)
-        .expect("mDNS: Failed to register our service");
-
+    //concurrently handle unix sockets
     let peers_clone = Arc::clone(&peers); // clone to use this in async below
     tokio::spawn(async move {
         handle_unix_sockets(peers_clone)
@@ -268,8 +269,10 @@ async fn main() -> std::io::Result<()> {
             .expect("Owned by skill issue,\r\nError with the unix sockets function");
     }); // concurrently run unix sockets?? ig so
 
-    // first time using async rust btw
-    discover_hosts(&mdns, peers, fullname.clone()).await?;
+    discover_hosts(&mdns, peers, fullname.clone()).await?; // handle mDNS based host discovery
+    // it takes a while and its inconsistent, i mean some times its fast and sometimes not
+
+    // =-=-=-=-=-=-=-= [ CLEANUP ] =-=-=-=-=-=-=-=
 
     tokio::signal::ctrl_c().await?;
     let _ = mdns.unregister(&fullname); // unnecessary but meh whatever

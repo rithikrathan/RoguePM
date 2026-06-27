@@ -41,22 +41,66 @@ Two daemon instances discover each other via mDNS. Each prints/logs the peer's h
 Discovered peers establish a TCP connection and exchange identity packets (device_id, hostname). Pending pairings are stored in-memory; accepted pairings persist in sled.
 - Proves: P2P TCP works, identity exchange works, pairing flow works, persistence works
 
-    - [ ] 3.1 Parse CLI args (`clap::Parser`): `--port`, `--socket-path`, `--data-dir`
-    - [ ] 3.2 Init sled DB at data-dir path, generate/load `device_id` via `init_identity()`
-    - [ ] 3.3 Load paired peers from sled into `Arc<Mutex<HashMap>>` on startup
-    - [ ] 3.4 Spawn TCP listener on `--port`, log connections, spawn per-connection handler
-    - [ ] 3.5 Implement `tcp_dial()`: connect, send JSON+`\n`, read response line, parse
-    - [ ] 3.6 Handle incoming `pair_request` → store in pending map, reply `pair_pending`
-    - [ ] 3.7 Handle incoming `pair_accept` → move from pending to paired + sled, reply `pair_ack`
-    - [ ] 3.8 Handle incoming `pair_ack` → store in paired + sled
-    - [ ] 3.9 Handle incoming `pair_reject` → remove from pending
-    - [ ] 3.10 Extend UNIX socket handler: `USRequest` gains optional `hostname` field
-    - [ ] 3.11 Implement `pair` UNIX command → `tcp_dial(pair_request)`, respond status
-    - [ ] 3.12 Implement `accept` UNIX command → `tcp_dial(pair_accept)`, wait `pair_ack`, persist
-    - [ ] 3.13 Implement `reject` / `forget` / `pending` UNIX commands
-    - [ ] 3.14 Enhanced `discoverHost` response: return discovered + paired + pending
-    - [ ] 3.15 Edge cases: self-pair check, 5s TCP timeout, re-pair, stale pending cleanup
+    - [-] 3.1 Parse CLI args (`clap::Parser`): `--port`, `--socket-path`, `--data-dir`
+        * **Look up:** `clap::Parser` macro, `clap::arg` attribute.
+        * **Hint:** Use `std::path::PathBuf` for file/socket paths. Use the "Derive Tutorial" in the `clap` docs to see how to map struct fields straight to long arguments using attributes like `#[arg(long, default_value = "...")]`.
 
+    - [ ] 3.2 Init sled DB at data-dir path, generate/load `device_id` via `init_identity()`
+        * **Look up:** `sled::open`, `sled::Db::get`, `sled::Db::insert`, `sled::Db::flush_async`.
+        * **Hint:** Sled keys/values use `&[u8]`. Convert strings using `.as_bytes()` and parse back using `std::str::from_utf8()`.
+
+    - [ ] 3.3 Load paired peers from sled into `Arc<Mutex<HashMap>>` on startup
+        * **Look up:** `std::sync::Arc`, `tokio::sync::Mutex`, `sled::Db::iter`.
+        * **Hint:** If operations inside the lock are pure in-memory map updates without `.await` boundaries, consider `parking_lot::Mutex` over `tokio::sync::Mutex` for better performance. Use `sled::Db::iter` to populate the map before spawning loops.
+
+    - [ ] 3.4 Spawn TCP listener on `--port`, log connections, spawn per-connection handler
+        * **Look up:** `tokio::net::TcpListener::bind`, `tokio::net::TcpListener::accept`, `tokio::spawn`.
+        * **Hint:** Clone the shared state `Arc` *before* moving it into the `tokio::spawn(async move { ... })` block.
+
+    - [ ] 3.5 Implement `tcp_dial()`: connect, send JSON+`\n`, read response line, parse
+        * **Look up:** `tokio::net::TcpStream::connect`, `tokio_util::codec::Framed`, `tokio_util::codec::LinesCodec`, `tokio::time::timeout`.
+        * **Hint:** Avoid raw byte shifting. Wrap the stream in `Framed::new(stream, LinesCodec::new())` to interact using plain `String` lines over futures `Sink::send` and `StreamExt::next`. Wrap the future in `tokio::time::timeout(Duration::from_secs(5), ...)` to handle the 5s timeout.
+
+    - [ ] 3.6 Handle incoming `pair_request` → store in pending map, reply `pair_pending`
+        * **Look up:** `serde::Deserialize`, `serde(tag = "action")` enum attribute, `tokio::sync::MutexGuard`.
+        * **Hint:** Look up Serde's "Enum representations" docs—specifically `#[serde(tag = "type")]` (internally tagged enum layout) so you can match directly against incoming JSON commands like `pair_request`.
+
+    - [ ] 3.7 Handle incoming `pair_accept` → move from pending to paired + sled, reply `pair_ack`
+        * **Look up:** `std::collections::HashMap::remove`, `std::collections::HashMap::insert`, `sled::Db::insert`.
+        * **Hint:** Lock the map, use `HashMap::remove()` on the pending entry, insert it into the paired collection, and execute `sled::Db::insert` to ensure persistence across restarts.
+
+    - [ ] 3.8 Handle incoming `pair_ack` → store in paired + sled
+        * **Look up:** `std::collections::HashMap::insert`, `sled::Db::insert`, `sled::Db::flush_async`.
+        * **Hint:** Commit the successful pair state to the shared memory map and write it out to the Sled store.
+
+    - [ ] 3.9 Handle incoming `pair_reject` → remove from pending
+        * **Look up:** `std::collections::HashMap::remove`.
+        * **Hint:** Clean the peer entry out of the transient memory map if the remote target rejects the session.
+
+    - [ ] 3.10 Extend UNIX socket handler: `USRequest` gains optional `hostname` field
+        * **Look up:** `serde(default)`, `std::option::Option`.
+        * **Hint:** Use Serde attributes like `#[serde(default)]` and `Option<String>` to handle changes gracefully when parsing fields from local CLI wrappers.
+
+    - [ ] 3.11 Implement `pair` UNIX command → `tcp_dial(pair_request)`, respond status
+        * **Look up:** `tokio::net::UnixListener`, `tokio::net::UnixStream`.
+        * **Hint:** Use `std::fs::remove_file` to clean old unlinked socket files before binding the server path. The Unix handler intercepts the command, triggers the TCP client `tcp_dial()` block, and writes the status back down the pipeline.
+
+    - [ ] 3.12 Implement `accept` UNIX command → `tcp_dial(pair_accept)`, wait `pair_ack`, persist
+        * **Look up:** `tokio::select!`.
+        * **Hint:** Look up `tokio::select!` documentation to see how to await a TCP network reply from the client channel while managing timeouts or drop cancellations simultaneously.
+
+    - [ ] 3.13 Implement `reject` / `forget` / `pending` UNIX commands
+        * **Look up:** Rust Control Flow docs for `match` patterns.
+        * **Hint:** Match patterns over enum representations to orchestrate execution routes down your local memory stores.
+
+    - [ ] 3.14 Enhanced `discoverHost` response: return discovered + paired + pending
+        * **Look up:** `serde::Serialize`.
+        * **Hint:** Structure an aggregated payload object that formats arrays from all three tracking layers into a single serialized response.
+
+    - [ ] 3.15 Edge cases: self-pair check, 5s TCP timeout, re-pair, stale pending cleanup
+        * **Look up:** `tokio::time::Duration`, `tokio::time::timeout`, `tokio::time::interval`.
+        * **Hint:** For cleanup, run a background loop using `tokio::spawn` and `tokio::time::interval(Duration).tick().await`. Prevent self-pairing by matching remote identifiers against your own state payload properties. 
+    
 ## Hello World 4: TLS Pairing
 Daemon generates a self-signed TLS certificate on startup. All TCP communication between paired peers is wrapped in TLS. On first pair, peers pin each other's cert fingerprint (TOFU). Future connections verify the pinned fingerprint.
 - Proves: TLS encryption works, trust-on-first-use works, cert pinning persists across restarts
