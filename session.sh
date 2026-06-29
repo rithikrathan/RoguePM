@@ -3,7 +3,7 @@
 SESSION="RoguePM"
 BASE_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROGUED_DIR="$BASE_DIR/rogued"
-ROGUED_DIR1="$BASE_DIR/rogued"
+ROGUED_DIR1="$BASE_DIR"
 
 tmux kill-session -t "$SESSION" 2>/dev/null
 
