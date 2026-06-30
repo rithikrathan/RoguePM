@@ -169,7 +169,6 @@ async fn discover_hosts(
                 // log and handle if peer is discovered
                 ServiceEvent::ServiceResolved(serv_resolved) => {
                     info!("Service resolved: {}", serv_resolved.get_hostname());
-                    info!("{:?}", serv_resolved.get_fullname());
 
                     let ip_str = serv_resolved
                         .get_addresses_v4()
@@ -178,8 +177,12 @@ async fn discover_hosts(
                         .collect::<Vec<_>>()
                         .join(", ");
 
-                    // let key = serv_resolved.get_fullname().to_string();
-                    let uid = serv_resolved.get_fullname().to_string();
+                    // let uid = serv_resolved.get_fullname().to_string();
+                    // let uid = serv_resolved.get_property("deviceId").unwrap_or("unknown");
+                    let uid = serv_resolved
+                        .get_property("deviceId")
+                        .map(|s| s.val_str())
+                        .unwrap_or("unknown");
                     // skip our own service
                     if serv_resolved.get_fullname().to_string() == *self_fullname && !INCLUDE_SELF {
                         continue;
@@ -189,16 +192,14 @@ async fn discover_hosts(
                         .get_fullname()
                         .strip_suffix(&format!(".{}", MDNS_SERVICE_TYPE))
                         .unwrap()
-                        .to_string()
-                        // .unwrap_or(&serv_resolved.get_fullname().to_string())
-                        .into();
+                        .to_string();
 
                     peers.blocking_lock().insert(
-                        uid,
+                        uid.to_string(),
                         PeerInfo {
                             hostname: cleaned_hostname,
-                            // hostname: serv_resolved.get_fullname().to_string(),
-                            uid: 0,
+                            fullname: serv_resolved.get_fullname().to_string(),
+                            uid: uid.to_string(),
                             ipv4: ip_str.into(),
                             trusted: true,
                             status: "discovered".into(),
@@ -208,10 +209,12 @@ async fn discover_hosts(
 
                 // log if peer is being shutdown
                 ServiceEvent::ServiceRemoved(_, fullname) => {
-                    //WARN: rn this works cus uid key is actually fullname, but will not when you add actual uid for hosts
+                    // remove from discovered peers list (more like only keep the things that are
+                    // not the removed one)
                     info!("Service removed: {}", fullname);
-                    // remove from discovered peers list
-                    peers.blocking_lock().remove(&fullname);
+                    peers
+                        .blocking_lock()
+                        .retain(|_, info| info.fullname != fullname);
                 }
 
                 // log if self is being shutdown
@@ -236,6 +239,10 @@ async fn main() -> std::io::Result<()> {
     // first time using async rust btw
     tracing_subscriber::fmt().with_max_level(Level::INFO).init(); // To display logs on the standard IO
 
+    let device_id = std::fs::read_to_string("/etc/machine-id")
+        .map(|s| s.trim().to_string())
+        .expect("/etc/machine-id not found");
+
     // =-=-=-=-=-=-=-= [ DEFINITIONS ] =-=-=-=-=-=-=-=
 
     // hashmap of hostname => ipaddress string
@@ -246,6 +253,7 @@ async fn main() -> std::io::Result<()> {
     let properties = [
         ("not_even_closee", "baby"),
         ("technoblade", "never_dies!!!!"),
+        ("deviceId", &device_id),
     ];
 
     let ip: String = match local_ip_address::local_ip() {

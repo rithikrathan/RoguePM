@@ -13,7 +13,8 @@ pub struct Response {
 #[derive(Deserialize, Serialize, Debug)]
 pub struct PeerInfo {
     pub hostname: String,
-    pub uid: u16,
+    pub fullname: String,
+    pub uid: String,
     pub ipv4: String,
     pub trusted: bool,
     pub status: String,
