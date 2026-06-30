@@ -189,7 +189,7 @@ cmd_daemon() {
                 echo ""
                 _render_peers "$response"
                 echo ""
-                echo -n -e "  ${ROGUE_RED_SOLID}◆${RESET} Row: "
+                echo -n -e "  ${ROGUE_RED_SOLID}◆${RESET} Select host to pair ${GREEN}[Row number]${RESET}: "
                 read -r row
                 echo ""
             fi
