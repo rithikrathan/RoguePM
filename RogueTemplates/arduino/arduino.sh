@@ -30,12 +30,33 @@ Descriptions for the repository will be updated in the future commits
 EOL
 echo -e "${GREEN}[✔]${RESET} Created README.md"
 
-if [ -d "$FILES_DIR" ]; then
-	cp "$FILES_DIR/sketch.ino" "$PROJECT_DIR/$PROJECT_NAME.ino"
-	echo -e "${GREEN}[✔]${RESET} Created $PROJECT_NAME.ino"
-	cp "$FILES_DIR/config.h" "$PROJECT_DIR/config.h"
-	echo -e "${GREEN}[✔]${RESET} Created config.h"
+cat <<EOL > "$PROJECT_DIR/$PROJECT_NAME.ino"
+void setup() {
+  pinMode(LED_PIN, OUTPUT);
+  Serial.begin(BAUD_RATE);
+}
 
+void loop() {
+  digitalWrite(LED_PIN, HIGH);
+  delay(1000);
+  digitalWrite(LED_PIN, LOW);
+  delay(1000);
+}
+EOL
+echo -e "${GREEN}[✔]${RESET} Created $PROJECT_NAME.ino"
+
+cat <<EOL > "$PROJECT_DIR/config.h"
+#ifndef CONFIG_H
+#define CONFIG_H
+
+#define LED_PIN 13
+#define BAUD_RATE 9600
+
+#endif
+EOL
+echo -e "${GREEN}[✔]${RESET} Created config.h"
+
+if [ -d "$FILES_DIR" ]; then
 	shopt -s dotglob
 	for item in "$FILES_DIR"*; do
 		if [ -f "$item" ]; then
@@ -47,11 +68,4 @@ if [ -d "$FILES_DIR" ]; then
 		fi
 	done
 	shopt -u dotglob
-
-	rm -f "$PROJECT_DIR/sketch.ino"
-elif [ ! -d "$FILES_DIR" ]; then
-	echo "[Rogue] Additional files not found, skipping....."
-	return 1
-else
-	echo "[Rogue] yeah something fishy this shouldn't happen"
 fi
