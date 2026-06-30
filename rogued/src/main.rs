@@ -185,10 +185,19 @@ async fn discover_hosts(
                         continue;
                     }
                     // add to discovered peers list
+                    let cleaned_hostname: String = serv_resolved
+                        .get_fullname()
+                        .strip_suffix(&format!(".{}", MDNS_SERVICE_TYPE))
+                        .unwrap()
+                        .to_string()
+                        // .unwrap_or(&serv_resolved.get_fullname().to_string())
+                        .into();
+
                     peers.blocking_lock().insert(
                         uid,
                         PeerInfo {
-                            hostname: serv_resolved.get_fullname().to_string(),
+                            hostname: cleaned_hostname,
+                            // hostname: serv_resolved.get_fullname().to_string(),
                             uid: 0,
                             ipv4: ip_str.into(),
                             trusted: true,
@@ -199,6 +208,7 @@ async fn discover_hosts(
 
                 // log if peer is being shutdown
                 ServiceEvent::ServiceRemoved(_, fullname) => {
+                    //WARN: rn this works cus uid key is actually fullname, but will not when you add actual uid for hosts
                     info!("Service removed: {}", fullname);
                     // remove from discovered peers list
                     peers.blocking_lock().remove(&fullname);
