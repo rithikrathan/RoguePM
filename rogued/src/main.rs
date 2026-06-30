@@ -77,7 +77,8 @@ async fn task_dispatcher(peers: Arc<Mutex<HashMap<String, PeerInfo>>>) -> std::i
                     }; // parse JSON
 
                     // process requests here
-                    match serialized_request.request_type.as_str() {
+                    let req_type = serialized_request["request_type"].as_str().unwrap_or("");
+                    match req_type {
                         "ping" => {
                             info!("{:?}", serialized_request);
                             let response = Response {
@@ -118,8 +119,23 @@ async fn task_dispatcher(peers: Arc<Mutex<HashMap<String, PeerInfo>>>) -> std::i
 
                         // pairing is done by the uid and not the hostname
                         "pair_request" => {
-                            // request a host for connection
-                            info!("{:?}", serialized_request);
+                            // request from frontend for pairing a host device
+                            info!("{:#?}", serialized_request);
+                            let response = Response {
+                                res: "Request received".to_string(),
+                            };
+                            let serialized_response = match serde_json::to_vec(&response) {
+                                Ok(ser) => ser,
+                                Err(e) => {
+                                    error!("Error while Serialization: \r\n {}", e);
+                                    return;
+                                }
+                            };
+                            if let Err(e) = stream.write_all(&serialized_response).await {
+                                error!(
+                                    "While writing to the output stream of the socket connection: \r\n{e}"
+                                );
+                            }
                         }
 
                         "pair_reject" => {

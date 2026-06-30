@@ -161,18 +161,11 @@ cmd_daemon() {
                     rogued_log_error "Unexpected arguments after -u: $*"
                     return 1
                 fi
-                local response
-                response=$(echo '{"request_type":"pair_request","uid":"'"$uid"'"}' | socat - UNIX-CONNECT:"$socketPath" 2>&1) || {
+                echo '{"request_type":"pair_request","uid":"'"$uid"'"}' | socat - UNIX-CONNECT:"$socketPath" >/dev/null 2>&1 || {
                     rogued_log_error "Daemon not reachable at $socketPath"
                     return 1
                 }
-                local message
-                message=$(echo "$response" | jq -r '.res // empty')
-                if [ -n "$message" ]; then
-                    rogued_log_success "$message"
-                else
-                    rogued_log_error "Unexpected response: $response"
-                fi
+                rogued_log_success "Pair request sent for UID: $uid"
                 return 0
             fi
 
@@ -218,17 +211,11 @@ cmd_daemon() {
                 return 1
             fi
 
-            response=$(echo '{"request_type":"pair_request","uid":"'"$uid"'"}' | socat - UNIX-CONNECT:"$socketPath" 2>&1) || {
+            echo '{"request_type":"pair_request","uid":"'"$uid"'"}' | socat - UNIX-CONNECT:"$socketPath" >/dev/null 2>&1 || {
                 rogued_log_error "Daemon not reachable at $socketPath"
                 return 1
             }
-            local message
-            message=$(echo "$response" | jq -r '.res // empty')
-            if [ -n "$message" ]; then
-                rogued_log_success "$message"
-            else
-                rogued_log_error "Unexpected response: $response"
-            fi
+            rogued_log_success "Pair request sent to ${YELLOW}$uid${RESET}"
             ;;
 
         accept)
