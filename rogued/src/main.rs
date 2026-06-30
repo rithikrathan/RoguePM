@@ -12,32 +12,34 @@
 //             connection, idk  how it turns out
 // -----------------------------------------------------------------------------
 
-use mdns_sd::{ServiceDaemon, ServiceEvent, ServiceInfo}; // for mDNS based host discovery
+use mdns_sd::{ServiceDaemon, ServiceEvent, ServiceInfo};
+// use sled::{Db, Tree};
+// use tokio::net::{TcpListener, UnixListener};
 use std::collections::HashMap;
 use std::io::ErrorKind;
 use std::sync::Arc;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::UnixListener;
 use tokio::sync::Mutex; // for serializations
-use tracing::{Level, error, info}; // from unix socket
+use tracing::{Level, error, info}; // from unix socket // for sled database
 
+// mod connections;
 mod types;
-use types::{Response, USRequest};
-
-mod db;
+use types::{PeerInfo, Response, USRequest};
 
 static SOCKET_BIND_PATH: &str = "/tmp/rogued.sock";
 static MDNS_SERVICE_TYPE: &str = "_rogued._tcp.local.";
 static INCLUDE_SELF: bool = true; // include self host name
 static TCP_PORT: u16 = 5200;
+// static DATABASE_PATH: &str = "~/.rogued/Data/"; // place where the sled database is stored
 
 // =-=-=-=-=-=-=-= [ HELPER FUNCTIONS ] =-=-=-=-=-=-=-=
 
-// UNIXSOCKETS are the way our rogue script interacts witht he daemon, to handle tcp connections and
+// UNIXSOCKETS are the way our rogue script interacts witht the daemon, to handle tcp connections and
 // exchange project list, This connection is between the daemon and the rogue script, that happens
 // locally via a shared file
 // async fn handle_unix_sockets(peers: &Arc<Mutex<HashMap<String, String>>>) -> std::io::Result<()> {
-async fn handle_unix_sockets(peers: Arc<Mutex<HashMap<String, String>>>) -> std::io::Result<()> {
+async fn task_dispatcher(peers: Arc<Mutex<HashMap<String, PeerInfo>>>) -> std::io::Result<()> {
     // bind a listener to that socket file and handle the errors
     let listener = match UnixListener::bind(SOCKET_BIND_PATH) {
         Ok(l) => l,
@@ -66,7 +68,7 @@ async fn handle_unix_sockets(peers: Arc<Mutex<HashMap<String, String>>>) -> std:
                         );
                     }
                     // handle errors later
-                    let serialised_request: USRequest = match serde_json::from_slice(&input_data) {
+                    let serialized_request: USRequest = match serde_json::from_slice(&input_data) {
                         Ok(ser) => ser,
                         Err(e) => {
                             error!("Error while Deserialization: \r\n {}", e);
@@ -75,53 +77,74 @@ async fn handle_unix_sockets(peers: Arc<Mutex<HashMap<String, String>>>) -> std:
                     }; // parse JSON
 
                     // process requests here
-                    if serialised_request.request_type == "ping" {
-                        info!("{:?}", serialised_request);
-                        let response = Response {
-                            res: "Pong!".to_string(),
-                        };
-
-                        // crete a mutable data buffer to store the response message and serialize
-                        let serialized_response = match serde_json::to_vec(&response) {
-                            Ok(ser) => ser,
-                            Err(e) => {
-                                error!("Error while Serialization: \r\n {}", e);
-                                return;
+                    match serialized_request.request_type.as_str() {
+                        "ping" => {
+                            info!("{:?}", serialized_request);
+                            let response = Response {
+                                res: "Pong!".to_string(),
+                            };
+                            let serialized_response = match serde_json::to_vec(&response) {
+                                Ok(ser) => ser,
+                                Err(e) => {
+                                    error!("Error while Serialization: \r\n {}", e);
+                                    return;
+                                }
+                            };
+                            if let Err(e) = stream.write_all(&serialized_response).await {
+                                error!(
+                                    "While writing to the output stream of the socket connection: \r\n{e}"
+                                );
                             }
-                        };
-
-                        if let Err(e) = stream.write_all(&serialized_response).await {
-                            //handle error
-                            error!(
-                                "While writing to the output stream of the socket connection: \r\n{e}"
-                            );
                         }
-                        return;
-                    } else if serialised_request.request_type == "discoverHost" {
-                        // handle it here later
-                        info!("{:?}", serialised_request);
-                        let locked = peers.lock().await;
-                        // crete a mutable data buffer to store the response message and serialize
-                        let serialized_response = match serde_json::to_string(&*locked) {
-                            Ok(ser) => ser,
-                            Err(e) => {
-                                error!("Error while Serialization: \r\n {}", e);
-                                return;
+
+                        "discoverHost" => {
+                            // dumps the discovered hosts from mDNS to the frontend
+                            info!("{:?}", serialized_request);
+                            let locked = peers.lock().await;
+                            let serialized_response = match serde_json::to_string(&*locked) {
+                                Ok(ser) => ser,
+                                Err(e) => {
+                                    error!("Error while Serialization: \r\n {}", e);
+                                    return;
+                                }
+                            };
+                            // info!("{:#?}", &*locked);
+                            if let Err(e) = stream.write_all(serialized_response.as_bytes()).await {
+                                error!(
+                                    "While writing to the output stream of the socket connection: \r\n{e}"
+                                );
                             }
-                        };
-
-                        // if let Err(e) = stream.write_all(&serialized_response.as_bytes()).await {
-                        if let Err(e) = stream.write_all(serialized_response.as_bytes()).await {
-                            //handle error
-                            error!(
-                                "While writing to the output stream of the socket connection: \r\n{e}"
-                            );
                         }
-                        return;
-                    } else {
-                        // Anything other than the above types of request
-                        error!("Something phishy... \r\n{:#?}", serialised_request);
-                        return;
+
+                        // pairing is done by the uid and not the hostname
+                        "pair_request" => {
+                            // request a host for connection
+                            info!("{:?}", serialized_request);
+                        }
+
+                        "pair_reject" => {
+                            // reject a host request
+                            info!("{:?}", serialized_request);
+                        }
+
+                        "pair_accept" => {
+                            // accept a host request
+                            info!("{:?}", serialized_request);
+                        }
+
+                        "list_pending" => {
+                            // list pending requests
+                            info!("{:?}", serialized_request);
+                        }
+
+                        "list_paired" => {
+                            // list paired hosts
+                            info!("{:?}", serialized_request);
+                        }
+
+                        _ => {
+                            error!("Something phishy... \r\n{:#?}", serialized_request);
+                        }
                     }
                 });
             }
@@ -132,13 +155,11 @@ async fn handle_unix_sockets(peers: Arc<Mutex<HashMap<String, String>>>) -> std:
     }
 }
 
-// async fn handle_database() {
-//     let db: Db = open("rogueData").unwrap();
-// }
+// async fn pair(peers: Arc<Mutex<HashMap<String, String>>>, fullname: String) {}
 
 async fn discover_hosts(
     mdns: &ServiceDaemon,
-    peers: Arc<Mutex<HashMap<String, String>>>,
+    peers: Arc<Mutex<HashMap<String, PeerInfo>>>,
     self_fullname: String,
 ) -> std::io::Result<()> {
     let mdns_receiver = mdns.browse(MDNS_SERVICE_TYPE).unwrap();
@@ -148,6 +169,8 @@ async fn discover_hosts(
                 // log and handle if peer is discovered
                 ServiceEvent::ServiceResolved(serv_resolved) => {
                     info!("Service resolved: {}", serv_resolved.get_hostname());
+                    info!("{:?}", serv_resolved.get_fullname());
+
                     let ip_str = serv_resolved
                         .get_addresses_v4()
                         .iter()
@@ -155,13 +178,23 @@ async fn discover_hosts(
                         .collect::<Vec<_>>()
                         .join(", ");
 
-                    let key = serv_resolved.get_fullname().to_string();
+                    // let key = serv_resolved.get_fullname().to_string();
+                    let uid = serv_resolved.get_fullname().to_string();
                     // skip our own service
                     if serv_resolved.get_fullname().to_string() == *self_fullname && !INCLUDE_SELF {
                         continue;
                     }
                     // add to discovered peers list
-                    peers.blocking_lock().insert(key, ip_str);
+                    peers.blocking_lock().insert(
+                        uid,
+                        PeerInfo {
+                            hostname: serv_resolved.get_fullname().to_string(),
+                            uid: 0,
+                            ipv4: ip_str.into(),
+                            trusted: true,
+                            status: "discovered".into(),
+                        },
+                    );
                 }
 
                 // log if peer is being shutdown
@@ -196,7 +229,7 @@ async fn main() -> std::io::Result<()> {
     // =-=-=-=-=-=-=-= [ DEFINITIONS ] =-=-=-=-=-=-=-=
 
     // hashmap of hostname => ipaddress string
-    let peers: Arc<Mutex<HashMap<String, String>>> = Arc::new(Mutex::new(HashMap::new()));
+    let peers: Arc<Mutex<HashMap<String, PeerInfo>>> = Arc::new(Mutex::new(HashMap::new()));
     let hostname: String = gethostname::gethostname().to_string_lossy().to_string();
 
     // dummmy property
@@ -228,6 +261,10 @@ async fn main() -> std::io::Result<()> {
     let fullname = sinfo.get_fullname().to_string();
 
     // =-=-=-=-=-=-=-= [ PROCESS ] =-=-=-=-=-=-=-=
+
+    // Init sled database
+    // let database: Db = sled::open(DATABASE_PATH).unwrap();
+    // let paired: Tree = database.open_tree("pairedDevices").unwrap(); //  stores paired devices
 
     // remove old Socket Files if it exists
     match std::fs::remove_file(SOCKET_BIND_PATH) {
@@ -264,7 +301,7 @@ async fn main() -> std::io::Result<()> {
     //concurrently handle unix sockets
     let peers_clone = Arc::clone(&peers); // clone to use this in async below
     tokio::spawn(async move {
-        handle_unix_sockets(peers_clone)
+        task_dispatcher(peers_clone)
             .await
             .expect("Owned by skill issue,\r\nError with the unix sockets function");
     }); // concurrently run unix sockets?? ig so

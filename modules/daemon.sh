@@ -76,27 +76,32 @@ cmd_daemon() {
             rogued_log_info "Discovered Peers"
             echo ""
 
-            local hostnames=() ips=()
-            while IFS=$'\t' read -r hostname ip; do
+            local hostnames=() uids=() ipv4s=() statuses=()
+            while IFS=$'\t' read -r hostname uid ipv4 status; do
                 hostnames+=("$hostname")
-                ips+=("$ip")
+                uids+=("$uid")
+                ipv4s+=("$ipv4")
+                statuses+=("$status")
             done < <(echo "$response" | jq -r '
-                to_entries[]
-                | [ (.key | split(".")[0]), .value ]
+                .[]
+                | [.hostname, (.uid | tostring), .ipv4, .status]
                 | @tsv
             ')
             local count=${#hostnames[@]}
 
-            local col_headers=("Peer" "IP")
-            local col_align=("l" "l")
-            local col_count=2
+            _center() { local t="$1" w="$2"; local l=${#t}; if [ "$l" -ge "$w" ]; then printf "%s" "$t"; else local p=$(( (w - l) / 2 )); printf "%*s%s%*s" "$p" "" "$t" "$((w - l - p))" ""; fi; }
+
+            local col_headers=("Hostname" "UID" "IPv4" "Status")
+            local col_count=4
             local widths=()
             for ((c = 0; c < col_count; c++)); do
                 widths[$c]=${#col_headers[$c]}
             done
             for ((idx = 0; idx < count; idx++)); do
                 [ ${#hostnames[$idx]} -gt ${widths[0]} ] && widths[0]=${#hostnames[$idx]}
-                [ ${#ips[$idx]} -gt ${widths[1]} ] && widths[1]=${#ips[$idx]}
+                [ ${#uids[$idx]} -gt ${widths[1]} ] && widths[1]=${#uids[$idx]}
+                [ ${#ipv4s[$idx]} -gt ${widths[2]} ] && widths[2]=${#ipv4s[$idx]}
+                [ ${#statuses[$idx]} -gt ${widths[3]} ] && widths[3]=${#statuses[$idx]}
             done
 
             local row_fmt="  "
@@ -107,14 +112,9 @@ cmd_daemon() {
             row_fmt+="\n"
 
             local cells=()
-            for ((c = 0; c < col_count; c++)); do
-                local val=""
-                if [ "${col_align[$c]}" = "r" ]; then
-                    val=$(printf "%*s" "${widths[$c]}" "${col_headers[$c]}")
-                else
-                    val=$(printf "%-*s" "${widths[$c]}" "${col_headers[$c]}")
-                fi
-                cells+=("$val")
+            cells+=("$(printf "%-*s" "${widths[0]}" "${col_headers[0]}")")
+            for ((c = 1; c < col_count; c++)); do
+                cells+=("$(_center "${col_headers[$c]}" "${widths[$c]}")")
             done
             printf "$row_fmt" "${cells[@]}"
 
@@ -129,15 +129,14 @@ cmd_daemon() {
 
             for ((idx = 0; idx < count; idx++)); do
                 cells=()
-                for ((c = 0; c < col_count; c++)); do
-                    case $c in
-                        0) cells+=("$(printf "%-*s" "${widths[0]}" "${hostnames[$idx]}")") ;;
-                        1) cells+=("$(printf "%-*s" "${widths[1]}" "${ips[$idx]}")") ;;
-                    esac
-                done
+                cells+=("$(printf "%-*s" "${widths[0]}" "${hostnames[$idx]}")")
+                cells+=("$(_center "${uids[$idx]}" "${widths[1]}")")
+                cells+=("$(_center "${ipv4s[$idx]}" "${widths[2]}")")
+                cells+=("$(_center "${statuses[$idx]}" "${widths[3]}")")
                 printf "$row_fmt" "${cells[@]}"
             done
             echo ""
+            unset -f _center
             ;;
 
         pair)

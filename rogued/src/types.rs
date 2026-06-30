@@ -11,10 +11,30 @@ pub struct Response {
 }
 
 #[derive(Deserialize, Serialize, Debug)]
-pub struct _PeerInfo {
-    hostname: String,
-    uuid: u16,
-    ipv4: String,
-    trusted: bool,
-    status: String,
+pub struct PeerInfo {
+    pub hostname: String,
+    pub uid: u16,
+    pub ipv4: String,
+    pub trusted: bool,
+    pub status: String,
 }
+
+// #[derive(Deserialize, Serialize, Debug)]
+// pub struct Message {
+//     message_type: String,
+//     initiated_by: PeerInfo, // sequence initiated by??
+//     message: Msg,
+//     sid: u8,
+// }
+
+// #[derive(Deserialize, Serialize, Debug)]
+// pub enum Msg {
+//     PairRequest,
+//     PairPending,
+//     PairAccept,
+//     PairReject,
+//     Ack,
+//     Unpair,
+//     Nvm,
+//     Dirty,
+// }
