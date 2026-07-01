@@ -1,46 +1,29 @@
-// INFO:
-// -----------------------------------------------------------------------------
-// Script: main.rs
-// Version: 0.0.1
-// Author: RITHIK RATHAN C. <github.com/rithikrathan>
-// License:
-// Repository: https://github.com/rithikrathan/RoguePM
-// Project: RoguePM
-// Created: 2026-06-23
-// Description: Very first iteration of the rogued consept of a daemon that handles
-//             distributed project management across a LAN using sshfs and some TCP
-//             connection, idk  how it turns out
-// -----------------------------------------------------------------------------
-
+use dashmap::DashMap;
 use mdns_sd::{ServiceDaemon, ServiceEvent, ServiceInfo};
-// use sled::{Db, Tree};
-// use tokio::net::{TcpListener, UnixListener};
 use std::collections::HashMap;
 use std::io::ErrorKind;
 use std::sync::Arc;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::UnixListener;
-use tokio::sync::Mutex; // for serializations
-use tracing::{Level, error, info}; // from unix socket // for sled database
+use tokio::sync::{mpsc, Mutex};
+use tracing::{Level, error, info};
 
-// mod connections;
+mod connections;
 mod types;
-use types::{PeerInfo, Response, USRequest};
+use connections::{initiate_connection, tcp_server_loop};
+use types::{ActiveConnections, PeerInfo, Response, USRequest, UnixCommand};
 
 static SOCKET_BIND_PATH: &str = "/tmp/rogued.sock";
 static MDNS_SERVICE_TYPE: &str = "_rogued._tcp.local.";
-static INCLUDE_SELF: bool = true; // include self host name
+static INCLUDE_SELF: bool = true;
 static TCP_PORT: u16 = 5200;
-// static DATABASE_PATH: &str = "~/.rogued/Data/"; // place where the sled database is stored
 
-// =-=-=-=-=-=-=-= [ HELPER FUNCTIONS ] =-=-=-=-=-=-=-=
-
-// UNIXSOCKETS are the way our rogue script interacts witht the daemon, to handle tcp connections and
-// exchange project list, This connection is between the daemon and the rogue script, that happens
-// locally via a shared file
-// async fn handle_unix_sockets(peers: &Arc<Mutex<HashMap<String, String>>>) -> std::io::Result<()> {
-async fn task_dispatcher(peers: Arc<Mutex<HashMap<String, PeerInfo>>>) -> std::io::Result<()> {
-    // bind a listener to that socket file and handle the errors
+async fn task_dispatcher(
+    peers: Arc<Mutex<HashMap<String, PeerInfo>>>,
+    roster: ActiveConnections,
+    db: sled::Db,
+    my_uid: String,
+) -> std::io::Result<()> {
     let listener = match UnixListener::bind(SOCKET_BIND_PATH) {
         Ok(l) => l,
         Err(e) => {
@@ -49,34 +32,31 @@ async fn task_dispatcher(peers: Arc<Mutex<HashMap<String, PeerInfo>>>) -> std::i
         }
     };
 
-    // loop that handles the socket connections
     loop {
-        // use the listener to accept incomming connections
         match listener.accept().await {
             Ok((mut stream, _addr)) => {
                 let peers = Arc::clone(&peers);
+                let roster = roster.clone();
+                let db = db.clone();
+                let my_uid = my_uid.clone();
+
                 tokio::spawn(async move {
                     info!("Unix Socket connected");
-                    // crete a mutable data buffer to store the incomming message
-                    //spawn a process here for concurrency
                     let mut input_data = Vec::new();
-                    // read till EOF into that buffer
                     if let Err(e) = stream.read_to_end(&mut input_data).await {
-                        //handle error
                         error!(
                             "While reading the input stream from the socket connection: \r\n{e}"
                         );
                     }
-                    // handle errors later
+
                     let serialized_request: USRequest = match serde_json::from_slice(&input_data) {
                         Ok(ser) => ser,
                         Err(e) => {
                             error!("Error while Deserialization: \r\n {}", e);
                             return;
                         }
-                    }; // parse JSON
+                    };
 
-                    // process requests here
                     let req_type = serialized_request["request_type"].as_str().unwrap_or("");
                     match req_type {
                         "ping" => {
@@ -99,7 +79,6 @@ async fn task_dispatcher(peers: Arc<Mutex<HashMap<String, PeerInfo>>>) -> std::i
                         }
 
                         "discoverHost" => {
-                            // dumps the discovered hosts from mDNS to the frontend
                             info!("{:?}", serialized_request);
                             let locked = peers.lock().await;
                             let serialized_response = match serde_json::to_string(&*locked) {
@@ -109,7 +88,6 @@ async fn task_dispatcher(peers: Arc<Mutex<HashMap<String, PeerInfo>>>) -> std::i
                                     return;
                                 }
                             };
-                            // info!("{:#?}", &*locked);
                             if let Err(e) = stream.write_all(serialized_response.as_bytes()).await {
                                 error!(
                                     "While writing to the output stream of the socket connection: \r\n{e}"
@@ -117,45 +95,282 @@ async fn task_dispatcher(peers: Arc<Mutex<HashMap<String, PeerInfo>>>) -> std::i
                             }
                         }
 
-                        // pairing is done by the uid and not the hostname
                         "pair_request" => {
-                            // request from frontend for pairing a host device
                             info!("{:#?}", serialized_request);
-                            let response = Response {
-                                res: "Request received".to_string(),
+                            let target_uid = serialized_request["uid"]
+                                .as_str()
+                                .unwrap_or("")
+                                .to_string();
+
+                            if target_uid.is_empty() {
+                                let response = Response {
+                                    res: "Error: No UID provided".to_string(),
+                                };
+                                let _ = stream
+                                    .write_all(&serde_json::to_vec(&response).unwrap())
+                                    .await;
+                                return;
+                            }
+
+                            let peer_info = {
+                                let locked = peers.lock().await;
+                                locked.get(&target_uid).cloned()
                             };
-                            let serialized_response = match serde_json::to_vec(&response) {
-                                Ok(ser) => ser,
-                                Err(e) => {
-                                    error!("Error while Serialization: \r\n {}", e);
-                                    return;
+
+                            match peer_info {
+                                Some(info) => {
+                                    let first_ip = info
+                                        .ipv4
+                                        .split(',')
+                                        .next()
+                                        .unwrap_or("")
+                                        .trim()
+                                        .to_string();
+                                    if first_ip.is_empty() {
+                                        let response = Response {
+                                            res: "Error: No IP for peer".to_string(),
+                                        };
+                                        let _ = stream
+                                            .write_all(&serde_json::to_vec(&response).unwrap())
+                                            .await;
+                                        return;
+                                    }
+                                    let addr = format!("{}:{}", first_ip, TCP_PORT);
+                                    let (tx, rx) = mpsc::channel(32);
+                                    roster.insert(target_uid.clone(), tx.clone());
+                                    tokio::spawn(initiate_connection(
+                                        addr,
+                                        target_uid.clone(),
+                                        my_uid.clone(),
+                                        db.clone(),
+                                        roster.clone(),
+                                        tx,
+                                        rx,
+                                    ));
+                                    let response = Response {
+                                        res: format!(
+                                            "Pairing request sent to {}",
+                                            target_uid
+                                        ),
+                                    };
+                                    let _ = stream
+                                        .write_all(&serde_json::to_vec(&response).unwrap())
+                                        .await;
                                 }
+                                None => {
+                                    let response = Response {
+                                        res: format!(
+                                            "Error: Peer '{}' not found via mDNS",
+                                            target_uid
+                                        ),
+                                    };
+                                    let _ = stream
+                                        .write_all(&serde_json::to_vec(&response).unwrap())
+                                        .await;
+                                }
+                            }
+                        }
+
+                        "pair_accept" => {
+                            info!("{:?}", serialized_request);
+                            let target_uid = serialized_request["uid"]
+                                .as_str()
+                                .filter(|s| !s.is_empty())
+                                .map(|s| s.to_string())
+                                .or_else(|| {
+                                    let hostname =
+                                        serialized_request["hostname"].as_str()?;
+                                    let locked = peers.blocking_lock();
+                                    locked
+                                        .iter()
+                                        .find(|(_, info)| info.hostname == hostname)
+                                        .map(|(uid, _)| uid.clone())
+                                })
+                                .unwrap_or_default();
+
+                            if target_uid.is_empty() {
+                                let response = Response {
+                                    res: "Error: No UID or hostname provided".to_string(),
+                                };
+                                let _ = stream
+                                    .write_all(&serde_json::to_vec(&response).unwrap())
+                                    .await;
+                                return;
+                            }
+
+                            match roster.get(&target_uid) {
+                                Some(actor_tx) => {
+                                    if actor_tx
+                                        .send(UnixCommand::AcceptPairing(
+                                            target_uid.clone(),
+                                        ))
+                                        .await
+                                        .is_err()
+                                    {
+                                        let response = Response {
+                                            res: "Error: Peer actor unreachable"
+                                                .to_string(),
+                                        };
+                                        let _ = stream
+                                            .write_all(
+                                                &serde_json::to_vec(&response).unwrap(),
+                                            )
+                                            .await;
+                                    } else {
+                                        let response = Response {
+                                            res: "Accept sent".to_string(),
+                                        };
+                                        let _ = stream
+                                            .write_all(
+                                                &serde_json::to_vec(&response).unwrap(),
+                                            )
+                                            .await;
+                                    }
+                                }
+                                None => {
+                                    let response = Response {
+                                        res: format!(
+                                            "Error: No active connection to {}",
+                                            target_uid
+                                        ),
+                                    };
+                                    let _ = stream
+                                        .write_all(&serde_json::to_vec(&response).unwrap())
+                                        .await;
+                                }
+                            }
+                        }
+
+                        "pair_reject" => {
+                            info!("{:?}", serialized_request);
+                            let target_uid = serialized_request["uid"]
+                                .as_str()
+                                .filter(|s| !s.is_empty())
+                                .map(|s| s.to_string())
+                                .or_else(|| {
+                                    let hostname =
+                                        serialized_request["hostname"].as_str()?;
+                                    let locked = peers.blocking_lock();
+                                    locked
+                                        .iter()
+                                        .find(|(_, info)| info.hostname == hostname)
+                                        .map(|(uid, _)| uid.clone())
+                                })
+                                .unwrap_or_default();
+
+                            if target_uid.is_empty() {
+                                let response = Response {
+                                    res: "Error: No UID or hostname provided".to_string(),
+                                };
+                                let _ = stream
+                                    .write_all(&serde_json::to_vec(&response).unwrap())
+                                    .await;
+                                return;
+                            }
+
+                            match roster.get(&target_uid) {
+                                Some(actor_tx) => {
+                                    if actor_tx
+                                        .send(UnixCommand::RejectPairing(
+                                            target_uid.clone(),
+                                        ))
+                                        .await
+                                        .is_err()
+                                    {
+                                        let response = Response {
+                                            res: "Error: Peer actor unreachable"
+                                                .to_string(),
+                                        };
+                                        let _ = stream
+                                            .write_all(
+                                                &serde_json::to_vec(&response).unwrap(),
+                                            )
+                                            .await;
+                                    } else {
+                                        let response = Response {
+                                            res: "Reject sent".to_string(),
+                                        };
+                                        let _ = stream
+                                            .write_all(
+                                                &serde_json::to_vec(&response).unwrap(),
+                                            )
+                                            .await;
+                                    }
+                                }
+                                None => {
+                                    let response = Response {
+                                        res: format!(
+                                            "Error: No active connection to {}",
+                                            target_uid
+                                        ),
+                                    };
+                                    let _ = stream
+                                        .write_all(&serde_json::to_vec(&response).unwrap())
+                                        .await;
+                                }
+                            }
+                        }
+
+                        "list_pending" => {
+                            info!("{:?}", serialized_request);
+                            let pending_uids: Vec<String> = roster
+                                .iter()
+                                .map(|entry| entry.key().clone())
+                                .collect();
+                            let response = Response {
+                                res: serde_json::to_string(&pending_uids).unwrap(),
                             };
-                            if let Err(e) = stream.write_all(&serialized_response).await {
+                            let serialized_response =
+                                match serde_json::to_vec(&response) {
+                                    Ok(ser) => ser,
+                                    Err(e) => {
+                                        error!(
+                                            "Error while Serialization: \r\n {}",
+                                            e
+                                        );
+                                        return;
+                                    }
+                                };
+                            if let Err(e) =
+                                stream.write_all(&serialized_response).await
+                            {
                                 error!(
                                     "While writing to the output stream of the socket connection: \r\n{e}"
                                 );
                             }
                         }
 
-                        "pair_reject" => {
-                            // reject a host request
-                            info!("{:?}", serialized_request);
-                        }
-
-                        "pair_accept" => {
-                            // accept a host request
-                            info!("{:?}", serialized_request);
-                        }
-
-                        "list_pending" => {
-                            // list pending requests
-                            info!("{:?}", serialized_request);
-                        }
-
                         "list_paired" => {
-                            // list paired hosts
                             info!("{:?}", serialized_request);
+                            let paired: Vec<String> = db
+                                .iter()
+                                .filter_map(|res| {
+                                    res.ok().map(|(key, _)| {
+                                        String::from_utf8_lossy(&key).to_string()
+                                    })
+                                })
+                                .collect();
+                            let response = Response {
+                                res: serde_json::to_string(&paired).unwrap(),
+                            };
+                            let serialized_response =
+                                match serde_json::to_vec(&response) {
+                                    Ok(ser) => ser,
+                                    Err(e) => {
+                                        error!(
+                                            "Error while Serialization: \r\n {}",
+                                            e
+                                        );
+                                        return;
+                                    }
+                                };
+                            if let Err(e) =
+                                stream.write_all(&serialized_response).await
+                            {
+                                error!(
+                                    "While writing to the output stream of the socket connection: \r\n{e}"
+                                );
+                            }
                         }
 
                         _ => {
@@ -171,8 +386,6 @@ async fn task_dispatcher(peers: Arc<Mutex<HashMap<String, PeerInfo>>>) -> std::i
     }
 }
 
-// async fn pair(peers: Arc<Mutex<HashMap<String, String>>>, fullname: String) {}
-
 async fn discover_hosts(
     mdns: &ServiceDaemon,
     peers: Arc<Mutex<HashMap<String, PeerInfo>>>,
@@ -182,7 +395,6 @@ async fn discover_hosts(
     std::thread::spawn(move || {
         while let Ok(event) = mdns_receiver.recv() {
             match event {
-                // log and handle if peer is discovered
                 ServiceEvent::ServiceResolved(serv_resolved) => {
                     info!("Service resolved: {}", serv_resolved.get_hostname());
 
@@ -193,17 +405,16 @@ async fn discover_hosts(
                         .collect::<Vec<_>>()
                         .join(", ");
 
-                    // let uid = serv_resolved.get_fullname().to_string();
-                    // let uid = serv_resolved.get_property("deviceId").unwrap_or("unknown");
                     let uid = serv_resolved
                         .get_property("deviceId")
                         .map(|s| s.val_str())
                         .unwrap_or("unknown");
-                    // skip our own service
-                    if serv_resolved.get_fullname().to_string() == *self_fullname && !INCLUDE_SELF {
+
+                    if serv_resolved.get_fullname().to_string() == *self_fullname && !INCLUDE_SELF
+                    {
                         continue;
                     }
-                    // add to discovered peers list
+
                     let cleaned_hostname: String = serv_resolved
                         .get_fullname()
                         .strip_suffix(&format!(".{}", MDNS_SERVICE_TYPE))
@@ -223,17 +434,13 @@ async fn discover_hosts(
                     );
                 }
 
-                // log if peer is being shutdown
                 ServiceEvent::ServiceRemoved(_, fullname) => {
-                    // remove from discovered peers list (more like only keep the things that are
-                    // not the removed one)
                     info!("Service removed: {}", fullname);
                     peers
                         .blocking_lock()
                         .retain(|_, info| info.fullname != fullname);
                 }
 
-                // log if self is being shutdown
                 ServiceEvent::SearchStopped(ty_domain) => {
                     info!("mDNS search stopped for: {}", ty_domain);
                     break;
@@ -246,26 +453,22 @@ async fn discover_hosts(
     Ok(())
 }
 
-// =-=-=-=-=-=-=-= [ MAIN FUNCTION ] =-=-=-=-=-=-=-=
-
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
-    println!("Hello Idiots!"); // mandatory insult
+    println!("Hello Idiots!");
 
-    // first time using async rust btw
-    tracing_subscriber::fmt().with_max_level(Level::INFO).init(); // To display logs on the standard IO
+    tracing_subscriber::fmt().with_max_level(Level::INFO).init();
 
     let device_id = std::fs::read_to_string("/etc/machine-id")
         .map(|s| s.trim().to_string())
         .expect("/etc/machine-id not found");
 
-    // =-=-=-=-=-=-=-= [ DEFINITIONS ] =-=-=-=-=-=-=-=
-
-    // hashmap of hostname => ipaddress string
     let peers: Arc<Mutex<HashMap<String, PeerInfo>>> = Arc::new(Mutex::new(HashMap::new()));
+    let roster: ActiveConnections = Arc::new(DashMap::new());
+    let db: sled::Db = sled::open("./rogued.db").unwrap();
     let hostname: String = gethostname::gethostname().to_string_lossy().to_string();
+    let my_uid = device_id.clone();
 
-    // dummmy property
     let properties = [
         ("not_even_closee", "baby"),
         ("technoblade", "never_dies!!!!"),
@@ -280,32 +483,22 @@ async fn main() -> std::io::Result<()> {
         }
     };
 
-    //service info struct that will be exchanged
     let sinfo = ServiceInfo::new(
-        MDNS_SERVICE_TYPE,             // service type
-        &hostname,                     // instance name
-        &format!("{hostname}.local."), // host name in the context of a DNS
-        ip,                            // local IP address
-        TCP_PORT,                      // port it runs on
-        &properties[..], // dummmy properties, ATP I just turned off my brain for thinking and use quick
-                         // patch up solutions
+        MDNS_SERVICE_TYPE,
+        &hostname,
+        &format!("{hostname}.local."),
+        ip,
+        TCP_PORT,
+        &properties[..],
     )
     .unwrap();
 
     let fullname = sinfo.get_fullname().to_string();
 
-    // =-=-=-=-=-=-=-= [ PROCESS ] =-=-=-=-=-=-=-=
-
-    // Init sled database
-    // let database: Db = sled::open(DATABASE_PATH).unwrap();
-    // let paired: Tree = database.open_tree("pairedDevices").unwrap(); //  stores paired devices
-
-    // remove old Socket Files if it exists
     match std::fs::remove_file(SOCKET_BIND_PATH) {
         Ok(()) => {
             info!("Discarding existing socket files");
         }
-
         Err(e) => {
             if e.kind() == ErrorKind::NotFound {
                 info!("No existing socket files found");
@@ -315,11 +508,10 @@ async fn main() -> std::io::Result<()> {
         }
     }
 
-    // create an mdns daemon object to run in a separate thread
     let mdns = ServiceDaemon::new().expect("Problem when starting mDNS daemon");
     mdns.register(sinfo)
         .expect("mDNS: Failed to register our service");
-    // handle mDNS daemon errors
+
     let de_receiver = mdns.monitor().expect("Failed to monitor mDNS daemon");
     std::thread::spawn(move || {
         while let Ok(event) = de_receiver.recv() {
@@ -332,25 +524,27 @@ async fn main() -> std::io::Result<()> {
         }
     });
 
-    //concurrently handle unix sockets
-    let peers_clone = Arc::clone(&peers); // clone to use this in async below
+    tokio::spawn(tcp_server_loop(
+        TCP_PORT,
+        my_uid.clone(),
+        db.clone(),
+        roster.clone(),
+    ));
+
+    let peers_clone = Arc::clone(&peers);
     tokio::spawn(async move {
-        task_dispatcher(peers_clone)
+        task_dispatcher(peers_clone, roster, db, my_uid)
             .await
             .expect("Owned by skill issue,\r\nError with the unix sockets function");
-    }); // concurrently run unix sockets?? ig so
+    });
 
-    discover_hosts(&mdns, peers, fullname.clone()).await?; // handle mDNS based host discovery
-    // it takes a while and its inconsistent, i mean some times its fast and sometimes not
-
-    // =-=-=-=-=-=-=-= [ CLEANUP ] =-=-=-=-=-=-=-=
+    discover_hosts(&mdns, peers, fullname.clone()).await?;
 
     tokio::signal::ctrl_c().await?;
-    let _ = mdns.unregister(&fullname); // unnecessary but meh whatever
-    mdns.shutdown().unwrap(); // shutdown already unregisters
+    let _ = mdns.unregister(&fullname);
+    mdns.shutdown().unwrap();
 
     match std::fs::remove_file(SOCKET_BIND_PATH) {
-        //cleanup socket files
         Ok(()) => info!("Removed socket file"),
         Err(e) if e.kind() == ErrorKind::NotFound => {}
         Err(e) => error!("Failed to remove socket file: {}", e),

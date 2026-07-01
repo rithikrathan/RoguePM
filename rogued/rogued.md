@@ -109,12 +109,12 @@ Levels: `ERROR`, `WARN`, `INFO` (default), `DEBUG`, `TRACE`
 │  rogue.sh   │ ◄─────────────────►  │    rogued      │
 │ (bash CLI)  │   /tmp/rogued.sock   │  (Rust daemon) │
 └─────────────┘                      └────────┬───────┘
-                                               │
+                                              │
                                      mDNS (port 5353)
-                                               │
-                                       ┌───────┴───────┐
-                                       │   LAN Peers   │
-                                       └───────────────┘
+                                              │
+                                      ┌───────┴───────┐
+                                      │   LAN Peers   │
+                                      └───────────────┘
 ```
 
 ### Internal Flow

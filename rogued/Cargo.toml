@@ -21,6 +21,10 @@ ssh-key = "0.6"
 tokio-stream = "0.1.18"
 gethostname = "1.1.0"
 local-ip-address = "0.6.13"
+dashmap = "6.2.1"
+tokio-util = { version = "0.7", features = ["codec"] }
+futures = "0.3"
+bytes = "1"
 
 [profile.release]
 strip = true
