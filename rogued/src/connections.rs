@@ -32,6 +32,7 @@ pub async fn pairing_actor(
 
     loop {
         tokio::select! {
+            // paring requester
             Some(Ok(bytes)) = framed.next() => {
                 let msg: PeerMessage = match serde_json::from_slice(&bytes) {
                     Ok(m) => m,
@@ -80,6 +81,7 @@ pub async fn pairing_actor(
                 }
             }
 
+            // pairing responder
             Some(cmd) = unix_rx.recv() => {
                 match (&state, cmd) {
                     (State::WaitingForUserResponse, UnixCommand::AcceptPairing(_)) => {
@@ -99,6 +101,7 @@ pub async fn pairing_actor(
                 }
             }
 
+            // handle timeout
             _ = tokio::time::sleep(std::time::Duration::from_secs(60)), if state != State::Paired => {
                 if state == State::PendingCommit {
                     let _ = db.remove(peer_uid.as_bytes());
@@ -141,6 +144,7 @@ pub async fn tcp_server_loop(
     }
 }
 
+// helper funciton to connect to a peer
 pub async fn initiate_connection(
     target_addr: String,
     _peer_uid: String,
