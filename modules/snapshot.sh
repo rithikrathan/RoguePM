@@ -15,11 +15,15 @@ cmd_snapshot() {
     done
 
     if [ -f "$LOCAL_PROJECTS_LIST" ]; then
-        while IFS= read -r dir; do
-            if [ -d "$dir" ]; then
-                if [[ ! " ${target_dirs[*]} " =~ " ${dir} " ]]; then
-                    target_dirs+=("$dir")
-                fi
+        while IFS= read -r line; do
+            if [[ "$line" == *"/*" ]]; then
+                local base="${line%/\*}"
+                [ -d "$base" ] || continue
+                for sub in "$base"/*/; do
+                    [ -d "$sub" ] && [[ ! " ${target_dirs[*]} " =~ " ${sub} " ]] && target_dirs+=("$sub")
+                done
+            else
+                [ -d "$line" ] && [[ ! " ${target_dirs[*]} " =~ " ${line} " ]] && target_dirs+=("$line")
             fi
         done < "$LOCAL_PROJECTS_LIST"
     fi

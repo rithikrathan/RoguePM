@@ -44,10 +44,15 @@ cmd_list() {
     done
 
     if [ -f "$LOCAL_PROJECTS_LIST" ]; then
-        while IFS= read -r dir; do
-            if [ -d "$dir" ] && [[ ! " ${target_dirs[*]} " =~ " ${dir} " ]]; then
-                target_dirs+=("$dir")
-                is_local_flags+=(true)
+        while IFS= read -r line; do
+            if [[ "$line" == *"/*" ]]; then
+                local base="${line%/\*}"
+                [ -d "$base" ] || continue
+                for sub in "$base"/*/; do
+                    [ -d "$sub" ] && target_dirs+=("$sub") && is_local_flags+=(true)
+                done
+            else
+                [ -d "$line" ] && [[ ! " ${target_dirs[*]} " =~ " ${line} " ]] && target_dirs+=("$line") && is_local_flags+=(true)
             fi
         done < "$LOCAL_PROJECTS_LIST"
     fi

@@ -41,12 +41,15 @@ cmd_open() {
     fi
 
     if [ -f "$LOCAL_PROJECTS_LIST" ]; then
-        while IFS= read -r dir; do
-            if [ -d "$dir" ]; then
-                if [[ ! " ${proj_paths[*]} " =~ " ${dir} " ]]; then
-                    proj_paths+=("$dir")
-                    fzf_entries+=("$(basename "$dir") [Local]  |  $dir")
-                fi
+        while IFS= read -r line; do
+            if [[ "$line" == *"/*" ]]; then
+                local base="${line%/\*}"
+                [ -d "$base" ] || continue
+                for sub in "$base"/*/; do
+                    [ -d "$sub" ] && [[ ! " ${proj_paths[*]} " =~ " ${sub} " ]] && proj_paths+=("$sub") && fzf_entries+=("$(basename "$sub") [Local]  |  $sub")
+                done
+            else
+                [ -d "$line" ] && [[ ! " ${proj_paths[*]} " =~ " ${line} " ]] && proj_paths+=("$line") && fzf_entries+=("$(basename "$line") [Local]  |  $line")
             fi
         done < "$LOCAL_PROJECTS_LIST"
     fi
