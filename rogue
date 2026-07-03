@@ -5,8 +5,8 @@
 
 CONFIG_FILE="$HOME/.roguerc"
 PROJECTS_DIR="/mnt/sda3/projects"
-TEMPLATES_DIR="$HOME/Desktop/projects/RoguePM/RogueTemplates"
-LOCAL_PROJECTS_LIST="$HOME/Desktop/projects/RoguePM/rp.list"
+TEMPLATES_DIR="/mnt/sda3/projects/RoguePM/RogueTemplates"
+LOCAL_PROJECTS_LIST="/mnt/sda3/projects/RoguePM/rp.list"
 DEFAULT_REMOTE="github"
 TERMINAL_APP="alacritty"
 FILE_MANAGER="dolphin"
