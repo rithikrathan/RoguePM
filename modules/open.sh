@@ -2,27 +2,28 @@
 # MODULE: OPEN
 # ==========================================
 
+accent="#db293f"
+bg="#060505"
+searchBg="#1c1c1c"
+fg="#d0c0c0"
+
 cmd_open() {
-    local run_session="false"
     local use_gui="false"
-    local open_term="false"
     local open_explorer="false"
     local search_query=""
 
     while [[ $# -gt 0 ]]; do
         case "$1" in
-            -t|--terminal) run_session="true"; shift ;;
-            -g|--gui) use_gui="true"; shift ;;
-            --term) open_term="true"; shift ;;
-            --explorer) open_explorer="true"; shift ;;
+            -gt|--gui-term) use_gui="gui-term"; shift ;;
+            -ge|--gui-explorer) use_gui="gui-explorer"; shift ;;
+            -e|--explorer) open_explorer="true"; shift ;;
             --help|-h)
                 echo -e "\n${ROGUE_RED_ITALIC}[Rogue]${RESET} ${BOLD}OPEN COMMAND USAGE${RESET}"
                 echo -e "source rogue open [options] [query]\n"
-                echo -e "  -t, --terminal     Run session.sh"
-                echo -e "  -g, --gui          Use rofi instead of fzf (for some reaSON)"
-                echo -e "  --term             Open project in $TERMINAL_APP"
-                echo -e "  --explorer         Open project in $FILE_MANAGER"
-                echo -e "\n  [query]          Automatically change to the first directory that matches"
+                echo -e "  -gt, --gui-term   Pick project via bemenu, open in $TERMINAL_APP"
+                echo -e "  -ge, --gui-explorer Pick project via bemenu, open in $FILE_MANAGER"
+                echo -e "  -e, --explorer    Pick project via fzf, open in $FILE_MANAGER"
+                echo -e "\n  [query]          Automatically filter to the first directory that matches"
                 return 0 ;;
             *) search_query="$1"; shift ;;
         esac
@@ -30,12 +31,15 @@ cmd_open() {
 
     declare -a fzf_entries
     declare -a proj_paths
+    declare -a display_names
 
     if [ -d "$PROJECTS_DIR" ]; then
         for dir in "$PROJECTS_DIR"/*; do
             if [ -d "$dir" ]; then
+                local pname="$(basename "$dir")"
                 proj_paths+=("$dir")
-                fzf_entries+=("$(basename "$dir")  |  $dir")
+                display_names+=("  $pname")
+                fzf_entries+=("$pname  |  $dir")
             fi
         done
     fi
@@ -46,10 +50,10 @@ cmd_open() {
                 local base="${line%/\*}"
                 [ -d "$base" ] || continue
                 for sub in "$base"/*/; do
-                    [ -d "$sub" ] && [[ ! " ${proj_paths[*]} " =~ " ${sub} " ]] && proj_paths+=("$sub") && fzf_entries+=("$(basename "$sub") [Local]  |  $sub")
+                    [ -d "$sub" ] && [[ ! " ${proj_paths[*]} " =~ " ${sub} " ]] && local pname="$(basename "$sub")" && proj_paths+=("$sub") && display_names+=("  $pname [Local]") && fzf_entries+=("$pname [Local]  |  $sub")
                 done
             else
-                [ -d "$line" ] && [[ ! " ${proj_paths[*]} " =~ " ${line} " ]] && proj_paths+=("$line") && fzf_entries+=("$(basename "$line") [Local]  |  $line")
+                [ -d "$line" ] && [[ ! " ${proj_paths[*]} " =~ " ${line} " ]] && local pname="$(basename "$line")" && proj_paths+=("$line") && display_names+=("  $pname [Local]") && fzf_entries+=("$pname [Local]  |  $line")
             fi
         done < "$LOCAL_PROJECTS_LIST"
     fi
@@ -75,11 +79,31 @@ cmd_open() {
     fzf_entries=("${padded_entries[@]}")
 
     local selected_line
-    if [ "$use_gui" == "true" ]; then
-        if ! command -v rofi &> /dev/null; then log_error "'rofi' is not installed."; return 1; fi
-        local rofi_args=(-dmenu -i -p "Rogue Open")
-        [[ -n "$search_query" ]] && rofi_args+=(-filter "$search_query")
-        selected_line=$(printf "%s\n" "${fzf_entries[@]}" | rofi "${rofi_args[@]}")
+    local selected_idx=""
+    if [ "$use_gui" != "false" ]; then
+        if ! command -v bemenu &> /dev/null; then log_error "'bemenu' is not installed."; return 1; fi
+        local bemenu_args=(
+            --nb "$bg" --nf "$fg"
+            --tb "$bg" --tf "$accent"
+            --fb "$searchBg" --ff "$fg"
+            --hb "$accent" --hf "#000000"
+            --cb "$accent" --cf "#000000"
+            --ab "$bg" --af "$fg"
+            --scb "$searchBg" --scf "$accent"
+            --bdr "$accent" -B 4 -R 8 -W 0.3 -c
+            -p "[rogue] Open:" -s --hp 0 -i
+            --fn "JetBrainsMono Nerd Font Medium 20" -H 32 -l 7
+        )
+        [[ -n "$search_query" ]] && bemenu_args+=(--filter "$search_query")
+        selected_line=$(printf "%s\n" "${display_names[@]}" | bemenu "${bemenu_args[@]}")
+        if [ -n "$selected_line" ]; then
+            for i in "${!display_names[@]}"; do
+                if [ "${display_names[$i]}" = "$selected_line" ]; then
+                    selected_idx=$i
+                    break
+                fi
+            done
+        fi
     else
         if ! command -v fzf &> /dev/null; then log_error "'fzf' is not installed."; return 1; fi
         local fzf_args=(
@@ -96,27 +120,23 @@ cmd_open() {
 
     [ -z "$selected_line" ] && return 0
 
-    local target_dir=$(echo "$selected_line" | awk -F ' \\|  ' '{print $2}')
-
-    if [ "$open_explorer" == "true" ]; then
-        command -v "$FILE_MANAGER" &> /dev/null && "$FILE_MANAGER" "$target_dir" > /dev/null 2>&1 &
-    fi
-
-    if [ "$open_term" == "true" ]; then
-        command -v "$TERMINAL_APP" &> /dev/null && "$TERMINAL_APP" --working-directory "$target_dir" > /dev/null 2>&1 &
-    fi
-
-    if [ "$run_session" == "true" ]; then
-        if [ -f "$target_dir/session.sh" ]; then
-            log_step "Executing session.sh..."
-            cd "$target_dir" || return 1
-            echo "$target_dir" > /tmp/.rogue_cd
-            chmod +x ./session.sh
-            ./session.sh
-            return 0
-        fi
+    local target_dir
+    if [ "$use_gui" != "false" ] && [ -n "$selected_idx" ]; then
+        target_dir="${proj_paths[$selected_idx]}"
     else
-        cd "$target_dir" || return 1
-        echo "$target_dir" > /tmp/.rogue_cd
+        target_dir=$(echo "$selected_line" | awk -F ' \\|  ' '{print $2}')
     fi
+
+    if [ "$use_gui" == "gui-term" ]; then
+        command -v "$TERMINAL_APP" &> /dev/null && "$TERMINAL_APP" --working-directory "$target_dir" > /dev/null 2>&1 &
+        return 0
+    fi
+
+    if [ "$use_gui" == "gui-explorer" ] || [ "$open_explorer" == "true" ]; then
+        command -v "$FILE_MANAGER" &> /dev/null && "$FILE_MANAGER" "$target_dir" > /dev/null 2>&1 &
+        return 0
+    fi
+
+    cd "$target_dir" || return 1
+    echo "$target_dir" > /tmp/.rogue_cd
 }

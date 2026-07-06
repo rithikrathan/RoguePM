@@ -4,9 +4,9 @@
 # ==========================================
 
 CONFIG_FILE="$HOME/.roguerc"
-PROJECTS_DIR="/mnt/sda3/projects"
-TEMPLATES_DIR="/mnt/sda3/projects/RoguePM/RogueTemplates"
-LOCAL_PROJECTS_LIST="/mnt/sda3/projects/RoguePM/rp.list"
+PROJECTS_DIR="/mnt/sda4/projects"
+TEMPLATES_DIR="/mnt/sda4/projects/RoguePM/RogueTemplates"
+LOCAL_PROJECTS_LIST="/mnt/sda4/projects/RoguePM/rp.list"
 DEFAULT_REMOTE="github"
 TERMINAL_APP="alacritty"
 FILE_MANAGER="dolphin"
@@ -306,7 +306,7 @@ cmd_setup() {
     log_step "Generating rogueConf.json..."
     cat > "$HOME/.config/rogue/rogueConf.json" << JSONEOF
 {
-  "projects_dir": "/mnt/sda3/projects",
+  "projects_dir": "/mnt/sda4/projects",
   "templates_dir": "~/.config/rogue/templates",
   "modules_dir": "~/.config/rogue/modules",
   "local_projects_list": "~/.config/rogue/rp.list",
@@ -382,7 +382,7 @@ BASHEOF
 # RoguePM - Installed via 'rogue setup'
 # Settings here override rogueConf.json values.
 ROGUE_CONFIG="$HOME/.config/rogue/rogueConf.json"
-PROJECTS_DIR="/mnt/sda3/projects"
+PROJECTS_DIR="/mnt/sda4/projects"
 TEMPLATES_DIR="$HOME/.config/rogue/templates"
 LOCAL_PROJECTS_LIST="$HOME/.config/rogue/rp.list"
 DEFAULT_REMOTE="github"
