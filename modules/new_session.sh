@@ -206,7 +206,7 @@ cmd_new_session() {
             echo '[ -z "$TARGET_DIR" ] && exit 1'
             echo ''
         else
-            echo 'TARGET_DIR=.'
+            echo 'TARGET_DIR="$(pwd)"'
             echo ''
         fi
 
