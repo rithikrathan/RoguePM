@@ -19,7 +19,7 @@ cmd_open() {
                 echo -e "\n${ROGUE_RED_ITALIC}[Rogue]${RESET} ${BOLD}OPEN COMMAND USAGE${RESET}"
                 echo -e "source rogue open [options] [query]\n"
                 echo -e "  -t, --terminal     Run session.sh"
-                echo -e "  -g, --gui          Use rofi instead of fzf (for some reaSON)"
+                echo -e "  -g, --gui          Use bemenu instead of fzf (for some reaSON)"
                 echo -e "  --term             Open project in $TERMINAL_APP"
                 echo -e "  --explorer         Open project in $FILE_MANAGER"
                 echo -e "\n  [query]          Automatically change to the first directory that matches"
@@ -73,10 +73,10 @@ cmd_open() {
 
     local selected_line
     if [ "$use_gui" == "true" ]; then
-        if ! command -v rofi &> /dev/null; then log_error "'rofi' is not installed."; return 1; fi
-        local rofi_args=(-dmenu -i -p "Rogue Open")
-        [[ -n "$search_query" ]] && rofi_args+=(-filter "$search_query")
-        selected_line=$(printf "%s\n" "${fzf_entries[@]}" | rofi "${rofi_args[@]}")
+        if ! command -v bemenu-caelestia &> /dev/null; then log_error "'bemenu-caelestia' is not installed."; return 1; fi
+        local bemenu_args=(--prompt "Rogue Open:" -l 10 -c -W 0.3)
+        [[ -n "$search_query" ]] && bemenu_args+=(--filter "$search_query")
+        selected_line=$(printf "%s\n" "${fzf_entries[@]}" | bemenu-caelestia "${bemenu_args[@]}")
     else
         if ! command -v fzf &> /dev/null; then log_error "'fzf' is not installed."; return 1; fi
         local fzf_args=(
