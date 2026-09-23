@@ -14,16 +14,35 @@ cmd_new_session() {
     echo -e "\n────────────────────────────────────────────"
     echo -e "${ROGUE_RED_ITALIC}[Rogue]${RESET} ${BOLD_ITALIC_UNDERLINE}Session Configuration${RESET}\n"
 
-    local session_name="$prefill_name"
-    if [ -z "$session_name" ]; then
-        local dir_name
-        dir_name=$(basename "$(pwd)")
-        log_prompt "Enter session name (default: $dir_name): " session_name
-        [ -z "$session_name" ] && session_name="$dir_name"
-    fi
-
     local target_dir="${prefill_dir:-$(pwd)}"
     local session_file="$target_dir/session.sh"
+
+    local json_file="${ROGUE_CONFIG:-$HOME/.config/rogue/rogueConf.json}"
+    local default_session_name="$(basename "$target_dir")"
+
+    # Check if target_dir is inside a registered workspace
+    if [ -f "$json_file" ] && command -v jq &>/dev/null; then
+        local real_target="$(realpath "$target_dir" 2>/dev/null || echo "$target_dir")"
+        while IFS=$'\t' read -r w_name w_path; do
+            [ -z "$w_path" ] && continue
+            w_path="${w_path/#\~/$HOME}"
+            local real_w_path="$(realpath "$w_path" 2>/dev/null || echo "$w_path")"
+            if [[ "$real_target" == "$real_w_path"/* ]]; then
+                local rel_name="${real_target#$real_w_path/}"
+                default_session_name="$w_name/$rel_name"
+                break
+            fi
+        done < <(jq -r '.workspaces[]? | [ .name, .path ] | @tsv' "$json_file" 2>/dev/null)
+    fi
+
+    local session_name="$prefill_name"
+    if [ -z "$session_name" ]; then
+        log_prompt "Enter session name (default: $default_session_name): " session_name
+        session_name="${session_name:-$default_session_name}"
+    elif [[ "$session_name" != *"/"* ]] && [[ "$default_session_name" == *"/"* ]]; then
+        # If prefill was just project name but it is inside a workspace, use workspace/<name>
+        session_name="$default_session_name"
+    fi
 
     if [ -f "$session_file" ]; then
         local overwrite_choice

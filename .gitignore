@@ -9,3 +9,7 @@ plan/
 *.swo
 *~
 .DS_Store
+
+# C Core
+bin/
+c_core/*.o

@@ -1,13 +1,16 @@
 cmd_update() {
     local repo_dir="$ROGUE_DIR"
     local branch=""
+    local force="false"
 
     while [[ $# -gt 0 ]]; do
         case "$1" in
+            --force|-f|-y|--yes) force="true"; shift ;;
             --help|-h)
                 echo -e "\n${ROGUE_RED_ITALIC}[Rogue]${RESET} ${BOLD}UPDATE COMMAND USAGE${RESET}"
                 echo -e "source rogue update [options]\n"
-                echo -e "Pulls the latest version of RoguePM from its git repository and reinstalls.\n"
+                echo -e "Pulls the latest version of RoguePM from its git repository and updates installed files without overwriting user configs.\n"
+                echo -e "  --force, -f    Force reinstall without confirmation prompts"
                 echo -e "  --help, -h     Show this help message\n"
                 return 0 ;;
             *) log_error "Invalid flag for 'update': $1"; return 1 ;;
@@ -56,31 +59,19 @@ cmd_update() {
             log_info "Already up to date. No pull needed."
         fi
 
-        local choice
-        log_prompt "Reinstall local repo? (y/n): " choice
-        [[ ! "$choice" =~ ^[Yy]$ ]] && { log_info "Update aborted."; return 0; }
+        if [ "$force" != "true" ]; then
+            local choice
+            log_prompt "Reinstall local repo? (y/n): " choice
+            [[ ! "$choice" =~ ^[Yy]$ ]] && { log_info "Update aborted."; return 0; }
+        fi
     fi
 
     local sym_flag=""
     [ -L "$HOME/.local/bin/rogue" ] && sym_flag="--sym"
 
-    local config_bkup
-    if [ -f "$HOME/.config/rogue/rogueConf.json" ]; then
-        config_bkup=$(mktemp)
-        cp "$HOME/.config/rogue/rogueConf.json" "$config_bkup"
-    fi
-
     echo ""
-    log_step "Removing old installation..."
-    cmd_setup --remove
-
-    echo ""
-    log_step "Installing updated version..."
+    log_step "Updating installed binary, modules, and templates..."
     cmd_setup --force $sym_flag
 
-    if [ -n "$config_bkup" ]; then
-        cp "$config_bkup" "$HOME/.config/rogue/rogueConf.json"
-        rm -f "$config_bkup"
-        log_step "Preserved your existing rogueConf.json"
-    fi
+    log_success "RoguePM updated successfully."
 }

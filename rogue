@@ -78,10 +78,13 @@ print_help() {
     echo -e "\n${ROGUE_RED_ITALIC}[Rogue]${RESET} ${BOLD}COMMAND MENU${RESET}"
     echo -e "Usage: source rogue <mode> [options]\n"
     echo -e "  ${BOLD}new${RESET}          Create a new project (run 'rogue new --help')"
+    echo -e "  ${BOLD}ws${RESET}           Manage workspace and organization profiles (run 'rogue ws --help')"
+    echo -e "  ${BOLD}archive${RESET}      Archive a project locally and on GitHub/GitLab (run 'rogue archive --help')"
+    echo -e "  ${BOLD}unarchive${RESET}    Restore an archived project (run 'rogue unarchive --help')"
     echo -e "  ${BOLD}snapshot${RESET}     Push changes from all projects to ALL configured remotes"
     echo -e "  ${BOLD}template${RESET}     List templates or view template file tree"
     echo -e "  ${BOLD}list${RESET}         List all projects with branch, status, and last commit"
-    echo -e "  ${BOLD}open${RESET}         Open a project directory using fzf/rofi"
+    echo -e "  ${BOLD}open${RESET}         Open a project directory using fzf/bemenu"
     echo -e "  ${BOLD}daemon${RESET}       Talk to the rogued background daemon"
     echo -e "  ${BOLD}setPat${RESET}       Embeds \$GHPAT/\$GLPAT into all HTTPS git remote URLs"
     echo -e "  ${BOLD}addRemote${RESET}    Creates and adds a specified remote (github/gitlab)"
@@ -208,6 +211,12 @@ cmd_setup() {
             removed_something="true"
         fi
 
+        if [ -f "$HOME/.local/bin/rogue-core" ]; then
+            rm -f "$HOME/.local/bin/rogue-core"
+            log_step "Removed ~/.local/bin/rogue-core"
+            removed_something="true"
+        fi
+
         if [ -d "$HOME/.config/rogue" ]; then
             rm -rf "$HOME/.config/rogue"
             log_step "Removed ~/.config/rogue/"
@@ -282,6 +291,16 @@ cmd_setup() {
     log_step "Installing modules..."
     rsync -avh "$ROGUE_DIR/modules/" "$HOME/.config/rogue/modules/" > /dev/null 2>&1
 
+    # Build and install native C core binary if available
+    if [ -d "$ROGUE_DIR/c_core" ] && command -v gcc &>/dev/null; then
+        log_step "Building and installing native rogue-core (C)..."
+        if make -C "$ROGUE_DIR/c_core" install PREFIX="$HOME/.local/bin" > /dev/null 2>&1; then
+            log_success "Native rogue-core compiled and installed."
+        else
+            log_info "Native C build failed; fallback to Bash modules active."
+        fi
+    fi
+
     if [ -d "$ROGUE_DIR/RogueTemplates" ]; then
         log_step "Copying templates..."
         rsync -avh "$ROGUE_DIR/RogueTemplates/" "$HOME/.config/rogue/templates/" > /dev/null 2>&1
@@ -289,22 +308,30 @@ cmd_setup() {
         log_step "Templates source not found — skipping."
     fi
 
-    if [ -f "$ROGUE_DIR/rp.list" ]; then
-        log_step "Copying rp.list..."
-        rsync -avh "$ROGUE_DIR/rp.list" "$HOME/.config/rogue/rp.list" > /dev/null 2>&1
+    if [ ! -f "$HOME/.config/rogue/rp.list" ]; then
+        if [ -f "$ROGUE_DIR/rp.list" ]; then
+            log_step "Copying initial rp.list..."
+            rsync -avh "$ROGUE_DIR/rp.list" "$HOME/.config/rogue/rp.list" > /dev/null 2>&1
+        else
+            touch "$HOME/.config/rogue/rp.list"
+            log_step "Created ~/.config/rogue/rp.list"
+        fi
     else
-        log_step "rp.list source not found — skipping."
+        log_step "Existing rp.list found — preserved without overwrite."
     fi
 
-    if [ -f "$ROGUE_DIR/RogueConfig" ]; then
-        log_step "Copying RogueConfig..."
-        rsync -avh "$ROGUE_DIR/RogueConfig" "$HOME/.config/rogue/config" > /dev/null 2>&1
+    if [ ! -f "$HOME/.config/rogue/config" ]; then
+        if [ -f "$ROGUE_DIR/RogueConfig" ]; then
+            log_step "Copying initial RogueConfig..."
+            rsync -avh "$ROGUE_DIR/RogueConfig" "$HOME/.config/rogue/config" > /dev/null 2>&1
+        fi
     else
-        log_step "RogueConfig source not found — skipping."
+        log_step "Existing config found — preserved without overwrite."
     fi
 
-    log_step "Generating rogueConf.json..."
-    cat > "$HOME/.config/rogue/rogueConf.json" << JSONEOF
+    if [ ! -f "$HOME/.config/rogue/rogueConf.json" ]; then
+        log_step "Generating rogueConf.json..."
+        cat > "$HOME/.config/rogue/rogueConf.json" << JSONEOF
 {
   "projects_dir": "/mnt/sda4/projects",
   "templates_dir": "~/.config/rogue/templates",
@@ -314,9 +341,22 @@ cmd_setup() {
   "default_remote": "github",
   "terminal_app": "alacritty",
   "file_manager": "dolphin",
-  "rogue_script": "~/.local/bin/rogue"
+  "rogue_script": "~/.local/bin/rogue",
+  "workspaces": []
 }
 JSONEOF
+    else
+        log_step "Existing rogueConf.json found — preserved without overwrite."
+        if command -v jq &>/dev/null; then
+            local has_ws
+            has_ws=$(jq '.workspaces // empty' "$HOME/.config/rogue/rogueConf.json" 2>/dev/null)
+            if [ -z "$has_ws" ]; then
+                local patched
+                patched=$(jq '.workspaces = []' "$HOME/.config/rogue/rogueConf.json" 2>/dev/null)
+                [ -n "$patched" ] && echo "$patched" > "$HOME/.config/rogue/rogueConf.json"
+            fi
+        fi
+    fi
 
     declare -a shell_configs=()
 
@@ -378,7 +418,9 @@ BASHEOF
         shell_list="${shell_list}${shell_list:+, }$s"
     done
 
-    cat > "$HOME/.roguerc" << EOF
+    if [ ! -f "$HOME/.roguerc" ]; then
+        log_step "Generating ~/.roguerc..."
+        cat > "$HOME/.roguerc" << EOF
 # RoguePM - Installed via 'rogue setup'
 # Settings here override rogueConf.json values.
 ROGUE_CONFIG="$HOME/.config/rogue/rogueConf.json"
@@ -389,6 +431,9 @@ DEFAULT_REMOTE="github"
 TERMINAL_APP="alacritty"
 FILE_MANAGER="dolphin"
 EOF
+    else
+        log_step "Existing ~/.roguerc found — preserved without overwrite."
+    fi
 
     local install_type="copy"
     [ "$sym" = "true" ] && install_type="symlink"
@@ -455,11 +500,15 @@ main() {
     case "$command" in
         new) cmd_new "$@" ;;
 
+        ws) cmd_ws "$@" ;;
+
+        archive) cmd_archive "$@" ;;
+
+        unarchive) cmd_unarchive "$@" ;;
+
         template) cmd_template "$@" ;;
         
-        snapshot)
-            [[ $# -gt 0 ]] && { log_error "'snapshot' takes no arguments."; return 1; }
-            cmd_snapshot ;;
+        snapshot) cmd_snapshot "$@" ;;
 
         addRemote) cmd_addRemote "$@" ;;
 
