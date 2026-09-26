@@ -95,7 +95,9 @@ void scan_single_project(ProjectItem *item) {
     }
 
     // 3. Status / Dirty Check
-    git_status_options opts = GIT_STATUS_OPTIONS_INIT;
+    git_status_options opts;
+    memset(&opts, 0, sizeof(opts));
+    git_status_init_options(&opts, GIT_STATUS_OPTIONS_VERSION);
     opts.flags = GIT_STATUS_OPT_INCLUDE_UNTRACKED | GIT_STATUS_OPT_EXCLUDE_SUBMODULES;
     git_status_list *status_list = NULL;
     if (git_status_list_new(&status_list, repo, &opts) == 0) {

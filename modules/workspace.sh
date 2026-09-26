@@ -3,7 +3,7 @@
 # ==========================================
 
 get_config_file() {
-    echo "$HOME/.config/rogue/rogueConf.json"
+    echo "${ROGUE_CONFIG:-$HOME/.config/rogue/rogueConf.json}"
 }
 
 get_workspaces_json() {
