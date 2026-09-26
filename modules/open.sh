@@ -85,13 +85,19 @@ cmd_open() {
 
         declare -a sub_display_names=() sub_fzf_entries=() sub_paths=()
 
-        # Add the workspace root directory itself as the first autoselected entry
+        # 1. Back option
+        sub_paths+=("__BACK__")
+        sub_display_names+=("    ..")
+        sub_fzf_entries+=("..  |  ..")
+
+        # 2. Workspace root directory
         if [ -d "$chosen_path" ]; then
             sub_paths+=("$chosen_path")
-            sub_display_names+=("    . [Workspace Root]")
-            sub_fzf_entries+=(". [Workspace Root]  |  $chosen_path")
+            sub_display_names+=("    .")
+            sub_fzf_entries+=(".  |  $chosen_path")
         fi
 
+        # 3. Subdirectories
         if [ -d "$chosen_path" ]; then
             for dir in "$chosen_path"/*/; do
                 if [ -d "$dir" ]; then
@@ -103,7 +109,7 @@ cmd_open() {
             done
         fi
 
-        # Also add any local projects linked to this workspace
+        # 4. Linked local projects
         if [ -f "$list_file" ]; then
             while IFS= read -r line; do
                 [ -z "$line" ] && continue
@@ -118,10 +124,20 @@ cmd_open() {
             done < "$list_file"
         fi
 
-        if [ ${#sub_paths[@]} -eq 0 ]; then
-            log_info "Workspace '$chosen_ws' is empty."
-            return 0
-        fi
+        # Align FZF separator in sub-picker
+        local max_sub_width=0
+        for entry in "${sub_fzf_entries[@]}"; do
+            local name="${entry%  |  *}"
+            (( ${#name} > max_sub_width )) && max_sub_width=${#name}
+        done
+
+        local padded_sub_fzf=()
+        for entry in "${sub_fzf_entries[@]}"; do
+            local name="${entry%  |  *}"
+            local path="${entry#*  |  }"
+            padded_sub_fzf+=("$(printf "%-*s  |  %s" "$max_sub_width" "$name" "$path")")
+        done
+        sub_fzf_entries=("${padded_sub_fzf[@]}")
 
         local selected_sub=""
         if [ "$use_gui" != "false" ]; then
@@ -135,7 +151,7 @@ cmd_open() {
                 --ab "$bg" --af "$fg"
                 --scb "$searchBg" --scf "$accent"
                 --bdr "$accent" -B 4 -R 8 -W 0.3 -c
-                -p "[$chosen_ws] >" -s --hp 0 -i
+                -p "[rogue] >" -s --hp 0 -i
                 --fn "JetBrainsMono Nerd Font Medium 20" -H 32 -l 7
             )
             local ws_lower="${chosen_ws,,}"
@@ -155,7 +171,7 @@ cmd_open() {
         else
             if ! command -v fzf &> /dev/null; then log_error "'fzf' is not installed."; return 1; fi
             local fzf_args=(
-                --prompt="[Rogue] ($chosen_ws) > "
+                --prompt="[rogue] > "
                 --height=40%
                 --border=rounded
                 --color="prompt:#ff2030,info:#40ff20,pointer:#ff2030"
@@ -168,21 +184,37 @@ cmd_open() {
             local picked_line
             picked_line=$(printf "%s\n" "${sub_fzf_entries[@]}" | fzf "${fzf_args[@]}" | head -1)
             [ -z "$picked_line" ] && return 0
-            selected_sub=$(echo "$picked_line" | awk -F ' \\|  ' '{print $2}')
+            local picked_raw
+            picked_raw=$(echo "$picked_line" | awk -F ' \\|  ' '{print $1}' | xargs)
+            for i in "${!sub_fzf_entries[@]}"; do
+                local plain_name="${sub_fzf_entries[$i]%  |  *}"
+                plain_name="$(echo "$plain_name" | xargs)"
+                if [ "$plain_name" = "$picked_raw" ]; then
+                    selected_sub="${sub_paths[$i]}"
+                    break
+                fi
+            done
+        fi
+
+        if [ "$selected_sub" = "__BACK__" ] || [ "$selected_sub" = ".." ]; then
+            return 2
         fi
 
         _open_directory "$selected_sub"
     }
 
-    # Resolve target_ws with fuzzy/substring matching if passed
+    # Direct target_ws resolution if passed via CLI
     if [ -n "$target_ws" ]; then
         local resolved_ws
         resolved_ws=$(resolve_workspace_name "$target_ws") || return 1
         _open_workspace_picker "$resolved_ws"
-        return $?
+        local status=$?
+        if [ $status -ne 2 ]; then
+            return $status
+        fi
     fi
 
-    # Check if search_query matches a workspace name before checking project list
+    # Direct match if search_query precisely matches a workspace name
     if [ -n "$search_query" ]; then
         local q_lower="${search_query,,}"
         local matched_ws=""
@@ -198,171 +230,186 @@ cmd_open() {
 
         if [ -n "$matched_ws" ]; then
             _open_workspace_picker "$matched_ws"
-            return $?
+            local status=$?
+            if [ $status -ne 2 ]; then
+                return $status
+            fi
+            search_query=""
         fi
     fi
 
-    # STEP 1: Assemble top-level entries
-    declare -a item_types=() item_keys=() item_paths=() bemenu_entries=() fzf_entries=()
+    # STEP 1: Top-level navigation loop
+    while true; do
+        declare -a item_types=() item_keys=() item_paths=() bemenu_entries=() fzf_entries=()
 
-    # 1. Registered Workspaces
-    for i in "${!ws_names[@]}"; do
-        local w_name="${ws_names[$i]}"
-        local w_path="${ws_paths[$i]}"
-        item_types+=("workspace")
-        item_keys+=("$w_name")
-        item_paths+=("$w_path")
-        bemenu_entries+=("  [WS] $w_name")
-        fzf_entries+=("[WS] $w_name  |  $w_path")
-    done
-
-    # 2. Loose projects directly under PROJECTS_DIR (excluding registered workspace directories)
-    if [ -d "$PROJECTS_DIR" ]; then
-        for dir in "$PROJECTS_DIR"/*; do
-            if [ -d "$dir" ]; then
-                local real_d="$(realpath "$dir")"
-                local is_ws=false
-                for wp in "${ws_paths[@]}"; do
-                    if [ "$real_d" = "$wp" ]; then
-                        is_ws=true
-                        break
-                    fi
-                done
-                if [ "$is_ws" = false ]; then
-                    local pname="$(basename "$dir")"
-                    item_types+=("project")
-                    item_keys+=("$pname")
-                    item_paths+=("$dir")
-                    bemenu_entries+=("  $pname")
-                    fzf_entries+=("$pname  |  $dir")
-                fi
-            fi
-        done
-    fi
-
-    # 3. If a search query is passed, also include all workspace subprojects so direct search matches them
-    if [ -n "$search_query" ]; then
+        # 1. Registered Workspaces
         for i in "${!ws_names[@]}"; do
             local w_name="${ws_names[$i]}"
             local w_path="${ws_paths[$i]}"
-            if [ -d "$w_path" ]; then
-                for sub in "$w_path"/*/; do
-                    if [ -d "$sub" ]; then
-                        local pname="$(basename "$sub")"
+            item_types+=("workspace")
+            item_keys+=("$w_name")
+            item_paths+=("$w_path")
+            bemenu_entries+=("  [WS] $w_name")
+            fzf_entries+=("[WS] $w_name  |  $w_path")
+        done
+
+        # 2. Loose projects directly under PROJECTS_DIR (excluding registered workspace directories)
+        if [ -d "$PROJECTS_DIR" ]; then
+            for dir in "$PROJECTS_DIR"/*; do
+                if [ -d "$dir" ]; then
+                    local real_d="$(realpath "$dir")"
+                    local is_ws=false
+                    for wp in "${ws_paths[@]}"; do
+                        if [ "$real_d" = "$wp" ]; then
+                            is_ws=true
+                            break
+                        fi
+                    done
+                    if [ "$is_ws" = false ]; then
+                        local pname="$(basename "$dir")"
                         item_types+=("project")
                         item_keys+=("$pname")
-                        item_paths+=("$sub")
-                        bemenu_entries+=("  › $pname [$w_name]")
-                        fzf_entries+=("$pname [$w_name]  |  $sub")
+                        item_paths+=("$dir")
+                        bemenu_entries+=("  $pname")
+                        fzf_entries+=("$pname  |  $dir")
                     fi
-                done
-            fi
-        done
-    fi
-
-    # 4. Orphan local projects from rp.list
-    if [ -f "$list_file" ]; then
-        while IFS= read -r line; do
-            [ -z "$line" ] && continue
-            local l_path="${line%|*}"
-            local l_ws=""
-            [[ "$line" == *"|"* ]] && l_ws="${line#*|}"
-
-            if [ -z "$l_ws" ] || [ "$l_ws" = "$line" ]; then
-                # Orphan project
-                if [ -d "$l_path" ]; then
-                    local pname="$(basename "$l_path")"
-                    item_types+=("orphan")
-                    item_keys+=("$pname")
-                    item_paths+=("$l_path")
-                    bemenu_entries+=("  [orphan] $pname")
-                    fzf_entries+=("$pname [orphan]  |  $l_path")
                 fi
-            fi
-        done < "$list_file"
-    fi
+            done
+        fi
 
-    if [ ${#item_types[@]} -eq 0 ]; then
-        log_error "No projects or workspaces found."
-        return 1
-    fi
+        # 3. If a search query is passed, also include all workspace subprojects
+        if [ -n "$search_query" ]; then
+            for i in "${!ws_names[@]}"; do
+                local w_name="${ws_names[$i]}"
+                local w_path="${ws_paths[$i]}"
+                if [ -d "$w_path" ]; then
+                    for sub in "$w_path"/*/; do
+                        if [ -d "$sub" ]; then
+                            local pname="$(basename "$sub")"
+                            item_types+=("project")
+                            item_keys+=("$pname")
+                            item_paths+=("$sub")
+                            bemenu_entries+=("  › $pname [$w_name]")
+                            fzf_entries+=("$pname [$w_name]  |  $sub")
+                        fi
+                    done
+                fi
+            done
+        fi
 
-    # Align FZF separator
-    local max_width=0
-    for entry in "${fzf_entries[@]}"; do
-        local name="${entry%  |  *}"
-        (( ${#name} > max_width )) && max_width=${#name}
-    done
+        # 4. Orphan local projects from rp.list
+        if [ -f "$list_file" ]; then
+            while IFS= read -r line; do
+                [ -z "$line" ] && continue
+                local l_path="${line%|*}"
+                local l_ws=""
+                [[ "$line" == *"|"* ]] && l_ws="${line#*|}"
 
-    local padded_fzf=()
-    for entry in "${fzf_entries[@]}"; do
-        local name="${entry%  |  *}"
-        local path="${entry#*  |  }"
-        padded_fzf+=("$(printf "%-*s  |  %s" "$max_width" "$name" "$path")")
-    done
-    fzf_entries=("${padded_fzf[@]}")
+                if [ -z "$l_ws" ] || [ "$l_ws" = "$line" ]; then
+                    if [ -d "$l_path" ]; then
+                        local pname="$(basename "$l_path")"
+                        item_types+=("orphan")
+                        item_keys+=("$pname")
+                        item_paths+=("$l_path")
+                        bemenu_entries+=("  [orphan] $pname")
+                        fzf_entries+=("$pname [orphan]  |  $l_path")
+                    fi
+                fi
+            done < "$list_file"
+        fi
 
-    local selected_type="" selected_key="" selected_path=""
+        if [ ${#item_types[@]} -eq 0 ]; then
+            log_error "No projects or workspaces found."
+            return 1
+        fi
 
-    if [ "$use_gui" != "false" ]; then
-        if ! command -v bemenu &> /dev/null; then log_error "'bemenu' is not installed."; return 1; fi
-        local bemenu_args=(
-            --nb "$bg" --nf "$fg"
-            --tb "$bg" --tf "$accent"
-            --fb "$searchBg" --ff "$fg"
-            --hb "$accent" --hf "#000000"
-            --cb "$accent" --cf "#000000"
-            --ab "$bg" --af "$fg"
-            --scb "$searchBg" --scf "$accent"
-            --bdr "$accent" -B 4 -R 8 -W 0.3 -c
-            -p "[rogue] Open:" -s --hp 0 -i
-            --fn "JetBrainsMono Nerd Font Medium 20" -H 32 -l 7
-        )
-        [[ -n "$search_query" ]] && bemenu_args+=(--filter "$search_query")
-        local picked
-        picked=$(printf "%s\n" "${bemenu_entries[@]}" | bemenu "${bemenu_args[@]}")
-        [ -z "$picked" ] && return 0
-
-        for i in "${!bemenu_entries[@]}"; do
-            if [ "${bemenu_entries[$i]}" = "$picked" ]; then
-                selected_type="${item_types[$i]}"
-                selected_key="${item_keys[$i]}"
-                selected_path="${item_paths[$i]}"
-                break
-            fi
+        # Align FZF separator
+        local max_width=0
+        for entry in "${fzf_entries[@]}"; do
+            local name="${entry%  |  *}"
+            (( ${#name} > max_width )) && max_width=${#name}
         done
-    else
-        if ! command -v fzf &> /dev/null; then log_error "'fzf' is not installed."; return 1; fi
-        local fzf_args=(
-            --prompt="[Rogue] Open > "
-            --height=40%
-            --border=rounded
-            --color="prompt:#ff2030,info:#40ff20,pointer:#ff2030"
-        )
-        [[ -n "$search_query" ]] && fzf_args+=(--filter "$search_query")
-        local picked_line
-        picked_line=$(printf "%s\n" "${fzf_entries[@]}" | fzf "${fzf_args[@]}" | head -1)
-        [ -z "$picked_line" ] && return 0
 
-        local picked_raw
-        picked_raw=$(echo "$picked_line" | awk -F ' \\|  ' '{print $1}' | xargs)
-
-        for i in "${!fzf_entries[@]}"; do
-            local plain_name="${fzf_entries[$i]%  |  *}"
-            plain_name="$(echo "$plain_name" | xargs)"
-            if [ "$plain_name" = "$picked_raw" ]; then
-                selected_type="${item_types[$i]}"
-                selected_key="${item_keys[$i]}"
-                selected_path="${item_paths[$i]}"
-                break
-            fi
+        local padded_fzf=()
+        for entry in "${fzf_entries[@]}"; do
+            local name="${entry%  |  *}"
+            local path="${entry#*  |  }"
+            padded_fzf+=("$(printf "%-*s  |  %s" "$max_width" "$name" "$path")")
         done
-    fi
+        fzf_entries=("${padded_fzf[@]}")
 
-    if [ "$selected_type" = "workspace" ]; then
-        # STEP 2: Drill down into selected workspace
-        _open_workspace_picker "$selected_key"
-    else
-        _open_directory "$selected_path"
-    fi
+        local selected_type="" selected_key="" selected_path=""
+
+        if [ "$use_gui" != "false" ]; then
+            if ! command -v bemenu &> /dev/null; then log_error "'bemenu' is not installed."; return 1; fi
+            local bemenu_args=(
+                --nb "$bg" --nf "$fg"
+                --tb "$bg" --tf "$accent"
+                --fb "$searchBg" --ff "$fg"
+                --hb "$accent" --hf "#000000"
+                --cb "$accent" --cf "#000000"
+                --ab "$bg" --af "$fg"
+                --scb "$searchBg" --scf "$accent"
+                --bdr "$accent" -B 4 -R 8 -W 0.3 -c
+                -p "[rogue] >" -s --hp 0 -i
+                --fn "JetBrainsMono Nerd Font Medium 20" -H 32 -l 7
+            )
+            [[ -n "$search_query" ]] && bemenu_args+=(--filter "$search_query")
+            local picked
+            picked=$(printf "%s\n" "${bemenu_entries[@]}" | bemenu "${bemenu_args[@]}")
+            [ -z "$picked" ] && return 0
+
+            for i in "${!bemenu_entries[@]}"; do
+                if [ "${bemenu_entries[$i]}" = "$picked" ]; then
+                    selected_type="${item_types[$i]}"
+                    selected_key="${item_keys[$i]}"
+                    selected_path="${item_paths[$i]}"
+                    break
+                fi
+            done
+        else
+            if ! command -v fzf &> /dev/null; then log_error "'fzf' is not installed."; return 1; fi
+            local fzf_args=(
+                --prompt="[rogue] > "
+                --height=40%
+                --border=rounded
+                --color="prompt:#ff2030,info:#40ff20,pointer:#ff2030"
+            )
+            [[ -n "$search_query" ]] && fzf_args+=(--filter "$search_query")
+            local picked_line
+            picked_line=$(printf "%s\n" "${fzf_entries[@]}" | fzf "${fzf_args[@]}" | head -1)
+            [ -z "$picked_line" ] && return 0
+
+            local picked_raw
+            picked_raw=$(echo "$picked_line" | awk -F ' \\|  ' '{print $1}' | xargs)
+
+            for i in "${!fzf_entries[@]}"; do
+                local plain_name="${fzf_entries[$i]%  |  *}"
+                plain_name="$(echo "$plain_name" | xargs)"
+                if [ "$plain_name" = "$picked_raw" ]; then
+                    selected_type="${item_types[$i]}"
+                    selected_key="${item_keys[$i]}"
+                    selected_path="${item_paths[$i]}"
+                    break
+                fi
+            done
+        fi
+
+        # Reset search_query after first selection
+        search_query=""
+
+        if [ "$selected_type" = "workspace" ]; then
+            # STEP 2: Drill down into selected workspace
+            _open_workspace_picker "$selected_key"
+            local sub_status=$?
+            if [ $sub_status -eq 2 ]; then
+                # User chose ".." -> loop back to top menu
+                continue
+            fi
+            return $sub_status
+        else
+            _open_directory "$selected_path"
+            return $?
+        fi
+    done
 }
