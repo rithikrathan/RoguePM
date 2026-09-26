@@ -3,10 +3,10 @@
 # DISPATCHER: RoguePM
 # ==========================================
 
-CONFIG_FILE="$HOME/.roguerc"
+CONFIG_FILE="${ROGUE_CONFIG_FILE:-$HOME/.config/rogue/config}"
 PROJECTS_DIR="/mnt/sda4/projects"
-TEMPLATES_DIR="/mnt/sda4/projects/RoguePM/RogueTemplates"
-LOCAL_PROJECTS_LIST="/mnt/sda4/projects/RoguePM/rp.list"
+TEMPLATES_DIR="$HOME/.config/rogue/templates"
+LOCAL_PROJECTS_LIST="$HOME/.config/rogue/rp.list"
 DEFAULT_REMOTE="github"
 TERMINAL_APP="alacritty"
 FILE_MANAGER="dolphin"
@@ -142,10 +142,10 @@ fi
 
 load_modules() {
     local modules_dir=""
-    if [ -d "$ROGUE_DIR/modules" ]; then
-        modules_dir="$ROGUE_DIR/modules"
-    elif [ -d "$HOME/.config/rogue/modules" ]; then
+    if [ -d "$HOME/.config/rogue/modules" ]; then
         modules_dir="$HOME/.config/rogue/modules"
+    elif [ -n "$ROGUE_DIR" ] && [ -d "$ROGUE_DIR/modules" ]; then
+        modules_dir="$ROGUE_DIR/modules"
     else
         log_error "Modules directory not found. Run 'rogue setup' to install."
         return 1

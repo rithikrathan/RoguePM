@@ -205,10 +205,10 @@ cmd_new() {
 
     log_step "Creating template files..."
     local template_script="$TEMPLATES_DIR/$template/$template.sh"
-    if [ -x "$template_script" ]; then
-        "$template_script" -n "$project_name" -l "$license" -m "$commit_msg"
+    if [ -f "$template_script" ]; then
+        bash "$template_script" -n "$project_name" -l "$license" -m "$commit_msg"
     else
-        log_error "Template script missing/not executable at: $template_script"
+        log_error "Template script missing at: $template_script"
     fi
 
     log_step "Staging and committing initial files..."

@@ -138,14 +138,15 @@ resolve_template_name() {
     local assume_yes="${2:-false}"
     [ -z "$q" ] && return 1
 
-    local tpl_dir="${TEMPLATES_DIR:-/mnt/sda4/projects/RoguePM/RogueTemplates}"
+    local tpl_dir="${TEMPLATES_DIR:-$HOME/.config/rogue/templates}"
+    [ ! -d "$tpl_dir" ] && [ -n "$ROGUE_DIR" ] && [ -d "$ROGUE_DIR/RogueTemplates" ] && tpl_dir="$ROGUE_DIR/RogueTemplates"
     local -a tpl_list=()
 
     if [ -d "$tpl_dir" ]; then
         for t in "$tpl_dir"/*; do
             if [ -d "$t" ]; then
                 local bname="$(basename "$t")"
-                [ "$bname" != "default" ] && tpl_list+=("$bname")
+                tpl_list+=("$bname")
             fi
         done
     fi
