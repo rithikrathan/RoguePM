@@ -292,9 +292,9 @@ cmd_setup() {
     rsync -avh "$ROGUE_DIR/modules/" "$HOME/.config/rogue/modules/" > /dev/null 2>&1
 
     # Build and install native C core binary if available
-    if [ -d "$ROGUE_DIR/c_core" ] && command -v gcc &>/dev/null; then
+    if [ -d "$ROGUE_DIR/rogue_core" ] && command -v gcc &>/dev/null; then
         log_step "Building and installing native rogue-core (C)..."
-        if make -C "$ROGUE_DIR/c_core" install PREFIX="$HOME/.local/bin" > /dev/null 2>&1; then
+        if make -C "$ROGUE_DIR/rogue_core" install PREFIX="$HOME/.local/bin" > /dev/null 2>&1; then
             log_success "Native rogue-core compiled and installed."
         else
             log_info "Native C build failed; fallback to Bash modules active."

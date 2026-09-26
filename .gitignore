@@ -12,4 +12,4 @@ plan/
 
 # C Core
 bin/
-c_core/*.o
+rogue_core/*.o
