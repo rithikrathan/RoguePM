@@ -31,10 +31,12 @@ cmd_template_list() {
     echo -e "${ROGUE_RED_ITALIC}[Rogue]${RESET} ${BOLD_ITALIC_UNDERLINE}Available Templates${RESET}\n"
 
     local templates_dir=""
-    if [ -d "$ROGUE_DIR/RogueTemplates" ]; then
-        templates_dir="$ROGUE_DIR/RogueTemplates"
+    if [ -n "$TEMPLATES_DIR" ] && [ -d "$TEMPLATES_DIR" ]; then
+        templates_dir="$TEMPLATES_DIR"
     elif [ -d "$HOME/.config/rogue/templates" ]; then
         templates_dir="$HOME/.config/rogue/templates"
+    elif [ -n "$ROGUE_DIR" ] && [ -d "$ROGUE_DIR/RogueTemplates" ]; then
+        templates_dir="$ROGUE_DIR/RogueTemplates"
     else
         log_error "Templates directory not found."
         return 1
@@ -66,10 +68,12 @@ cmd_template_tree() {
     fi
 
     local templates_dir=""
-    if [ -d "$ROGUE_DIR/RogueTemplates" ]; then
-        templates_dir="$ROGUE_DIR/RogueTemplates"
+    if [ -n "$TEMPLATES_DIR" ] && [ -d "$TEMPLATES_DIR" ]; then
+        templates_dir="$TEMPLATES_DIR"
     elif [ -d "$HOME/.config/rogue/templates" ]; then
         templates_dir="$HOME/.config/rogue/templates"
+    elif [ -n "$ROGUE_DIR" ] && [ -d "$ROGUE_DIR/RogueTemplates" ]; then
+        templates_dir="$ROGUE_DIR/RogueTemplates"
     else
         log_error "Templates directory not found."
         return 1

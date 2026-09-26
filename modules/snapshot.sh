@@ -161,10 +161,11 @@ cmd_snapshot() {
                     continue
                 fi
 
+                local curr_branch=$(git branch --show-current 2>/dev/null || echo "HEAD")
                 local push_failed=false
                 for r in $remotes; do
-                    log_step "Pushing to $r..."
-                    if ! git push "$r" master 2>/dev/null && ! git push "$r" main 2>/dev/null; then
+                    log_step "Pushing to $r ($curr_branch)..."
+                    if ! git push "$r" "$curr_branch" 2>/dev/null && ! git push "$r" master 2>/dev/null && ! git push "$r" main 2>/dev/null; then
                         push_failed=true
                         log_error "Push failed for remote: $r"
                     fi

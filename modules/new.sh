@@ -235,7 +235,7 @@ cmd_new() {
                 git remote add github "https://github.com/$gh_user/$project_name.git"
             fi
             log_step "Pushing to GitHub..."
-            git push -u github master
+            git push -u github master 2>/dev/null || git push -u github main 2>/dev/null
         fi
 
         if [[ "$target_remote" == "gitlab" || "$target_remote" == "both" ]]; then
@@ -244,7 +244,7 @@ cmd_new() {
             local gl_user=$(glab api user -q '.username')
             git remote add gitlab "https://gitlab.com/$gl_user/$project_name.git"
             log_step "Pushing to GitLab..."
-            git push -u gitlab master
+            git push -u gitlab master 2>/dev/null || git push -u gitlab main 2>/dev/null
         fi
     fi
 

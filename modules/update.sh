@@ -17,11 +17,24 @@ cmd_update() {
         esac
     done
 
-    if [ ! -d "$repo_dir/.git" ]; then
-        log_error "RoguePM repository not found at $repo_dir"
-        log_info "Update only works when running from the cloned RoguePM repo."
+    local repo_dir=""
+    if [ -n "$ROGUE_REPO_DIR" ] && [ -d "$ROGUE_REPO_DIR/.git" ]; then
+        repo_dir="$ROGUE_REPO_DIR"
+    elif [ -d "$PWD/.git" ] && [ -f "$PWD/rogue" ]; then
+        repo_dir="$PWD"
+    elif [ -n "$ROGUE_DIR" ] && [ -d "$ROGUE_DIR/.git" ]; then
+        repo_dir="$ROGUE_DIR"
+    elif [ -d "$PROJECTS_DIR/RoguePM/.git" ]; then
+        repo_dir="$PROJECTS_DIR/RoguePM"
+    fi
+
+    if [ -z "$repo_dir" ] || [ ! -d "$repo_dir/.git" ]; then
+        log_error "RoguePM repository not found."
+        log_info "Run 'rogue update' from the RoguePM repository or set \$ROGUE_REPO_DIR."
         return 1
     fi
+
+    ROGUE_DIR="$repo_dir"
 
     echo -e "\n────────────────────────────────────────────"
     echo -e "${ROGUE_RED_ITALIC}[Rogue]${RESET} ${BOLD_ITALIC_UNDERLINE}Updating RoguePM${RESET}\n"
