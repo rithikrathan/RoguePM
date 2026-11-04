@@ -1,0 +1,8 @@
+.gemini/
+.agents/
+
+# Editor / OS artifacts
+*.swp
+*.swo
+*~
+.DS_Store

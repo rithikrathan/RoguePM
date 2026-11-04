@@ -105,14 +105,18 @@ uses throughout. There is no central orchestrator - every node is autonomous.
   (e.g., `systems`, `embedded`, `gamedev`, `client-acme`, `experiments`).
 - **Function:** Organizes projects logically so high-level lifecycle queries (e.g.,
   "show all active embedded projects") can be evaluated in `O(1)` from memory.
+- **Domain Metadata & Scopes:**
+  - **Toolchain Presets:** Default compilers, cross-compilers, and debuggers (e.g. `arm-none-eabi`, `openocd` for `embedded`; `clang`, `valgrind` for `systems`).
+  - **Environment & SDK Paths:** Domain-wide environment variables, SDK roots, and hardware access permissions.
+  - **Default Workspace Layouts:** Pre-configured tmux pane templates tailored to the domain (e.g. serial monitor splits for embedded; client/server splits for web).
+  - **Knowledge Vault Scopes:** Automatic pointer to relevant reference vault sections (e.g. hardware pinouts, datasheets, API specs).
 
 ---
-
-## 3. Project & Workspace Subsystem
-
-### `project`
-
-The primary recursive unit of work representing a codebase, hardware build, or software
+  ## 3. Project & Workspace Subsystem
+  
+  ### `project`
+  
+  The primary recursive unit of work representing a codebase, hardware build, or software
 tool. A project can be a standalone root repository or contain nested sub-projects.
 
 #### Core Project Attributes
@@ -242,3 +246,13 @@ indices go through the peer transport (SSH/SSHFS/sockets) with locking/leases ha
 by the target node. The workbench API remains identical regardless of whether the
 index is `0` or a peer's global index.
 
+
+---
+
+## 6. Future Ideas & Explorations (Non-Final)
+
+### Profile Secrets (Concept)
+- **Concept:** An identity-scoped secrets vault tied to each Profile for storing API tokens, forge PATs, deployment credentials, or signing passphrases.
+- **Local Isolation:** Secrets remain strictly local to the node (`Index 0`) and inject into active session environments at runtime.
+- **Wire Redaction:** Strictly filtered out and never transmitted over the wire or included in peer index manifests.
+- **Status:** Uncommitted design exploration. May or may not be implemented.
