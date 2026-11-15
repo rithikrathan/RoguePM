@@ -1,7 +1,7 @@
-# RoguePM Features
+# RoguePM Features (Brainstorm & Ideas Index)
 
-list of commands that is not the final features but my ideas 
-Feature index across all branches (`main`, `experimental`, `trash`, `Development`, and roadmap plans).
+> [!NOTE]
+> This document tracks command ideas, planned features, and exploratory concepts across branches (`main`, `experimental`, `Development`, and roadmap notes). These are working ideas under design, not locked or final specifications.
 
 ---
 
@@ -27,7 +27,6 @@ Feature index across all branches (`main`, `experimental`, `trash`, `Development
 ---
 
 ## 2. Native C Acceleration (`experimental`)
-
 - **`rogue-core`**: Native C engine replacing slow shell loops.
 - **Parallel git scanner**: Multi-threaded repo status checks using `libgit2` and `pthreads`.
 - **Fast fuzzy matcher**: Instant candidate filtering for CLI queries.
