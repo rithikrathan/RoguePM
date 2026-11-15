@@ -1,7 +1,5 @@
 # Profile Subsystem
-
 A **Profile** is a high-level identity boundary on a node. It isolates projects, defaults, and credentials by life context (e.g., `personal`, `work`, `consulting`, `lab`).
-
 ---
 
 ## Architecture & Security

@@ -1,5 +1,6 @@
 # RoguePM Features
 
+list of commands that is not the final features but my ideas 
 Feature index across all branches (`main`, `experimental`, `trash`, `Development`, and roadmap plans).
 
 ---

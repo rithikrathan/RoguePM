@@ -1,0 +1,64 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+show_help() {
+    cat << 'EOF'
+Usage: play-spotify [OPTIONS] <QUERY | URI | URL>
+
+Plays a track or search query on the background Spotify desktop client via MPRIS D-Bus
+without opening, focusing, or altering current active workspaces.
+
+Arguments:
+  <QUERY>              Song title / artist search text (e.g., "Starboy The Weeknd")
+  <URI>                Exact Spotify URI:
+                         - Track:    spotify:track:<id>
+                         - Album:    spotify:album:<id>
+                         - Playlist: spotify:playlist:<id>
+  <URL>                Open Spotify web URL (e.g., https://open.spotify.com/track/<id>)
+
+Options:
+  -h, --help           Show this help message
+EOF
+}
+
+if [ $# -eq 0 ] || [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
+    show_help
+    exit 0
+fi
+
+INPUT="$*"
+
+# Ensure Spotify is running
+if ! playerctl -l 2>/dev/null | grep -qi "spotify"; then
+    echo "Spotify client is not running. Launching Spotify..."
+    spotify >/dev/null 2>&1 &
+    sleep 2
+fi
+
+TARGET_URI=""
+
+# Case 1: Exact Spotify URI
+if [[ "$INPUT" =~ ^spotify:(track|album|playlist|artist|search): ]]; then
+    TARGET_URI="$INPUT"
+
+# Case 2: Spotify Web URL (track, album, playlist)
+elif [[ "$INPUT" =~ open\.spotify\.com/(track|album|playlist)/([a-zA-Z0-9]+) ]]; then
+    TYPE="${BASH_REMATCH[1]}"
+    ID="${BASH_REMATCH[2]}"
+    TARGET_URI="spotify:${TYPE}:${ID}"
+
+# Case 3: Plain text query
+else
+    CLEAN_QUERY=$(echo "$INPUT" | sed -e 's/^"//' -e 's/"$//' -e "s/^'//" -e "s/'$//")
+    TARGET_URI="spotify:search:${CLEAN_QUERY}"
+fi
+
+# Dispatch OpenUri to Spotify via MPRIS D-Bus
+dbus-send --print-reply --dest=org.mpris.MediaPlayer2.spotify \
+    /org/mpris/MediaPlayer2 \
+    org.mpris.MediaPlayer2.Player.OpenUri string:"$TARGET_URI" >/dev/null
+
+sleep 0.3
+playerctl -p spotify play 2>/dev/null || true
+
+echo "Playing in background: $TARGET_URI"

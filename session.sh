@@ -14,6 +14,7 @@ tmux new-window -t "$SESSION" -n "shell" -c "$TARGET_DIR"
 
 # agent window
 tmux new-window -t "$SESSION" -n "agent" -c "$TARGET_DIR"
+tmux send-keys -t "$SESSION:agent" "voicy target here && sleep 2 && agy --dangerously-skip-permissions" C-m
 
 # lazygit window
 tmux new-window -t "$SESSION" -n "lazygit" -c "$TARGET_DIR"

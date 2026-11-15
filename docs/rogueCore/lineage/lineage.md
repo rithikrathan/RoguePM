@@ -18,6 +18,10 @@ Lineage relies on `source_pointer` to separate logical database hierarchy from p
 - **Reparent:** Changes a child's parent reference to a new parent project without touching disk files.
 - **Detach as Root:** Promotes a subproject into an independent root project by clearing its `parent_id`.
 - **Ancestry Chain:** Computes the path from any subproject up to its root project.
+- **Children Limit (Configurable):** Defaults to 10 direct children per project. This limit can be overridden per project in project configuration. Grandchildren do not count toward the direct parent's limit.
+- **Cycle Detection & Prevention:** 
+  - Before reparenting or adopting, Rogue Core checks the ancestry chain.
+  - If a loop is detected (e.g. attempting to make a project a child of its own subproject), the operation is strictly blocked and an error warning is displayed. Circular ancestry is forbidden.
 
 ---
 
@@ -34,3 +38,9 @@ When a parent project is removed or deleted:
 - **Intent Locking:** Every project is strictly locked to its native Intent domain. Projects cannot be moved or transferred between Intents.
 - **Sharing Across Intents via Child Projects:** The only way to extend or share a project across different engineering disciplines is to create or adopt a child project under that other Intent.
 - **Isolation Guarantee:** This ensures multi-discipline architectures (e.g. an `embedded` device communicating with a `web` dashboard) are linked logically in the database while keeping domain toolchains, templates, and environment variables completely isolated and unpolluted.
+
+---
+
+## 5. Session Isolation
+- **One Project per Session:** Opening a parent project launches a session exclusively for that project.
+- **No Workspace Bleed:** Opening a parent does not automatically mount, symlink, or spawn workspaces for child projects. Each project manages its own independent runtime session.
